@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: medilink-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: 20.x
+      # The following variables MUST be added securely in the Render dashboard:
+      # - NEXT_PUBLIC_SUPABASE_URL
+      # - NEXT_PUBLIC_SUPABASE_ANON_KEY
+      # - SUPABASE_SERVICE_ROLE_KEY
+      # - RAZORPAY_KEY_ID
+      # - RAZORPAY_KEY_SECRET
+      - key: CORS_ORIGINS
+        # Update this with your frontend's deployed URL once you deploy it
+        value: http://localhost:3000
