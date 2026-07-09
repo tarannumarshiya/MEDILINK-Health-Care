@@ -26,6 +26,9 @@ import auditRoutes        from "./routes/audit";
 const app  = express();
 const PORT = Number(process.env.PORT ?? 4000);
 
+// Trust proxy for rate limiting behind Render/Vercel
+app.set("trust proxy", 1);
+
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // allow Supabase storage embeds
