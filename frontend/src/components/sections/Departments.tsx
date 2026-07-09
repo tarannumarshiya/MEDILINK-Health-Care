@@ -76,13 +76,13 @@ export function Departments() {
         >
           {departments.map(({ name, slug, desc, color, tags, bg }) => (
             <motion.div key={name} variants={fadeUp}>
-              <Tilt3D className="h-full">
-                <div
-                  className="group relative flex h-full flex-col overflow-hidden rounded-3xl transition-all duration-300 hover:shadow-glow"
-                  style={{ minHeight: "330px" }}
-                >
+              <Link
+                href={`/appointment?department=${slug}`}
+                className="group relative flex h-full flex-col overflow-hidden rounded-3xl transition-all duration-300 hover:shadow-glow hover:-translate-y-1 block"
+                style={{ minHeight: "330px" }}
+              >
                   <div
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
                     style={{ backgroundImage: `url(${bg})` }}
                   />
 
@@ -94,7 +94,7 @@ export function Departments() {
                   />
 
                   <div
-                    className="absolute inset-0 opacity-20 transition-opacity duration-300 group-hover:opacity-30"
+                    className="absolute inset-0 opacity-20 transition-opacity duration-300 group-hover:opacity-40"
                     style={{ background: color }}
                   />
 
@@ -128,19 +128,17 @@ export function Departments() {
                     </div>
 
                     <div className="mt-7">
-                      <Link
-                        href={`/appointment?department=${slug}`}
-                        className="inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                      <div
+                        className="inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold text-white transition group-hover:brightness-110"
                         style={{
                           background: `linear-gradient(135deg, ${color}, ${color}cc)`,
                         }}
                       >
-                        Book Appointment
-                      </Link>
+                        Book Appointment →
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Tilt3D>
+              </Link>
             </motion.div>
           ))}
         </motion.div>
