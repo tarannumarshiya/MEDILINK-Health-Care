@@ -56,7 +56,7 @@ export function Hero() {
           }}
         >
           <Image
-            src="/images/hero-doctor-consultation.jpg"
+            src="/images/Doctor_consulting_patient_in_hos…_202607131203.jpeg"
             alt="Doctor consulting a patient and family in a modern healthcare environment"
             fill
             className="object-cover object-center"

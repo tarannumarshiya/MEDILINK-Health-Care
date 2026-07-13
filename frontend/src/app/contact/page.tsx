@@ -83,14 +83,41 @@ export default function ContactPage() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
 
-    const validationError = validateContactForm(form);
+    const newErrors: Record<string, string> = {};
+    if (!form.full_name.trim() || form.full_name.trim().length < 2) {
+      newErrors.full_name = "Full name must be at least 2 characters.";
+    } else if (!/^[A-Za-z\s.'-]+$/.test(form.full_name.trim())) {
+      newErrors.full_name = "Full name must contain only letters.";
+    }
+    
+    if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(form.email.trim())) {
+      newErrors.email = "Enter a valid email address.";
+    }
 
-    if (validationError) {
-      setError(validationError);
+    if (form.phone) {
+      const raw = form.phone.replace(/[\s\-]/g, "");
+      if (!/^(?:\+?880)?01[3-9]\d{8}$/.test(raw)) {
+        newErrors.phone = "Enter a valid Bangladeshi phone number.";
+      }
+    }
+
+    if (!form.subject.trim() || form.subject.trim().length < 3) {
+      newErrors.subject = "Subject must be at least 3 characters.";
+    }
+
+    if (!form.message.trim() || form.message.trim().length < 10) {
+      newErrors.message = "Message must be at least 10 characters.";
+    }
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
+      setError("Please fix the validation errors above.");
       return;
     }
 
@@ -197,12 +224,14 @@ export default function ContactPage() {
                       <input
                         required
                         placeholder="Enter full name"
-                        className={inputCls}
+                        className={`${inputCls} ${errors.full_name ? "border-red-400 focus:ring-red-300" : ""}`}
                         value={form.full_name}
-                        onChange={(e) =>
-                          setForm({ ...form, full_name: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setForm({ ...form, full_name: e.target.value });
+                          if (errors.full_name) setErrors(prev => ({ ...prev, full_name: "" }));
+                        }}
                       />
+                      {errors.full_name && <p className="mt-1 text-xs font-semibold text-red-500">{errors.full_name}</p>}
                     </div>
 
                     <div>
@@ -213,12 +242,14 @@ export default function ContactPage() {
                         required
                         type="email"
                         placeholder="you@example.com"
-                        className={inputCls}
+                        className={`${inputCls} ${errors.email ? "border-red-400 focus:ring-red-300" : ""}`}
                         value={form.email}
-                        onChange={(e) =>
-                          setForm({ ...form, email: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setForm({ ...form, email: e.target.value });
+                          if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
+                        }}
                       />
+                      {errors.email && <p className="mt-1 text-xs font-semibold text-red-500">{errors.email}</p>}
                     </div>
 
                     <div>
@@ -227,12 +258,14 @@ export default function ContactPage() {
                       </label>
                       <input
                         placeholder="+880 17XX XXXXXX"
-                        className={inputCls}
+                        className={`${inputCls} ${errors.phone ? "border-red-400 focus:ring-red-300" : ""}`}
                         value={form.phone}
-                        onChange={(e) =>
-                          setForm({ ...form, phone: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setForm({ ...form, phone: e.target.value });
+                          if (errors.phone) setErrors(prev => ({ ...prev, phone: "" }));
+                        }}
                       />
+                      {errors.phone && <p className="mt-1 text-xs font-semibold text-red-500">{errors.phone}</p>}
                     </div>
 
                     <div>
@@ -242,12 +275,14 @@ export default function ContactPage() {
                       <input
                         required
                         placeholder="How can we help?"
-                        className={inputCls}
+                        className={`${inputCls} ${errors.subject ? "border-red-400 focus:ring-red-300" : ""}`}
                         value={form.subject}
-                        onChange={(e) =>
-                          setForm({ ...form, subject: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setForm({ ...form, subject: e.target.value });
+                          if (errors.subject) setErrors(prev => ({ ...prev, subject: "" }));
+                        }}
                       />
+                      {errors.subject && <p className="mt-1 text-xs font-semibold text-red-500">{errors.subject}</p>}
                     </div>
                   </div>
 
@@ -259,12 +294,14 @@ export default function ContactPage() {
                       required
                       rows={5}
                       placeholder="Describe your inquiry in detail..."
-                      className="w-full resize-none rounded-xl border border-input bg-background/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition focus:outline-none focus:ring-2 focus:ring-ring"
+                      className={`w-full resize-none rounded-xl border border-input bg-background/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition focus:outline-none focus:ring-2 focus:ring-ring ${errors.message ? "border-red-400 focus:ring-red-300" : ""}`}
                       value={form.message}
-                      onChange={(e) =>
-                        setForm({ ...form, message: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setForm({ ...form, message: e.target.value });
+                        if (errors.message) setErrors(prev => ({ ...prev, message: "" }));
+                      }}
                     />
+                    {errors.message && <p className="mt-1 text-xs font-semibold text-red-500">{errors.message}</p>}
                   </div>
 
                   {error && (

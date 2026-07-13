@@ -85,6 +85,7 @@ export default function PharmacyQueuePage() {
   const [vendorForm,    setVendorForm]    = useState({ name: "", contact: "", email: "" });
   const [vendorLoading, setVendorLoading] = useState(false);
   const [contactError,  setContactError]  = useState("");
+  const [nameError,     setNameError]     = useState("");
   const [addForm,       setAddForm]       = useState({
     name: "", description: "", category: "General",
     price: "", quantity: "", image_url: "", requires_prescription: false,
@@ -149,6 +150,20 @@ export default function PharmacyQueuePage() {
   async function addVendor(e: React.FormEvent) {
     e.preventDefault();
     setContactError("");
+    setNameError("");
+
+    if (!vendorForm.name.trim()) {
+      setNameError("Vendor name is required.");
+      return;
+    }
+    if (/^[\d\s]+$/.test(vendorForm.name.trim())) {
+      setNameError("Vendor name cannot contain only numbers.");
+      return;
+    }
+    if (!/[A-Za-z]/.test(vendorForm.name)) {
+      setNameError("Vendor name must contain at least some letters.");
+      return;
+    }
 
     // Validate contact phone: optional, but if provided must be a valid BD mobile number.
     // Accepted: 01XXXXXXXXX (11 digits) or +880 1XXXXXXXXX (with optional spaces/dashes)
@@ -176,6 +191,7 @@ export default function PharmacyQueuePage() {
     setMessage("Vendor added successfully.");
     setVendorForm({ name: "", contact: "", email: "" });
     setContactError("");
+    setNameError("");
     await load(); setVendorLoading(false);
   }
 
@@ -504,17 +520,23 @@ export default function PharmacyQueuePage() {
           <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
             <Panel title="Add Vendor" subtitle="Register a new supplier">
               <form onSubmit={addVendor} className="grid gap-4 pb-2">
-                {[
-                  { label: "Vendor Name *", key: "name",    type: "text",  placeholder: "e.g. MediSupply BD",  required: true },
-                  { label: "Email",         key: "email",   type: "email", placeholder: "orders@vendor.com",    required: false },
-                ].map(f => (
-                  <div key={f.key} className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">{f.label}</label>
-                    <input type={f.type} required={f.required} placeholder={f.placeholder} className={inputCls}
-                      value={vendorForm[f.key as keyof typeof vendorForm]}
-                      onChange={e => setVendorForm(p => ({ ...p, [f.key]: e.target.value }))} />
-                  </div>
-                ))}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">Vendor Name *</label>
+                  <input type="text" required placeholder="e.g. MediSupply BD" 
+                    className={`${inputCls} ${nameError ? "border-red-400 bg-red-50 focus:ring-red-400" : ""}`}
+                    value={vendorForm.name}
+                    onChange={e => {
+                      setVendorForm(p => ({ ...p, name: e.target.value }));
+                      if (nameError) setNameError("");
+                    }} />
+                  {nameError && <p className="text-xs font-semibold text-red-500">{nameError}</p>}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">Email</label>
+                  <input type="email" placeholder="orders@vendor.com" className={inputCls}
+                    value={vendorForm.email}
+                    onChange={e => setVendorForm(p => ({ ...p, email: e.target.value }))} />
+                </div>
 
                 {/* Contact Phone — separate with validation */}
                 <div className="space-y-1">
