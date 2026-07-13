@@ -90,6 +90,7 @@ export default function PharmacyQueuePage() {
     name: "", description: "", category: "General",
     price: "", quantity: "", image_url: "", requires_prescription: false,
   });
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
   const [addLoading, setAddLoading] = useState(false);
 
   const load = useCallback(async (showSpinner = true) => {
@@ -197,10 +198,31 @@ export default function PharmacyQueuePage() {
 
   async function addMedicine(e: React.FormEvent) {
     e.preventDefault();
-    const qty = Number(addForm.quantity);
-    if (!addForm.name.trim()) { setMessage("Medicine name is required."); return; }
-    if (!addForm.price || Number(addForm.price) <= 0) { setMessage("Enter a valid price greater than 0."); return; }
-    if (addForm.quantity !== "" && (isNaN(qty) || qty < 0)) { setMessage("Stock quantity must be 0 or more."); return; }
+    setAddErrors({});
+    const newErrors: Record<string, string> = {};
+
+    if (!addForm.name.trim()) {
+      newErrors.name = "Medicine name is required.";
+    } else if (addForm.name.trim().length < 2) {
+      newErrors.name = "Name must be at least 2 characters.";
+    } else if (!/[a-zA-Z]/.test(addForm.name)) {
+      newErrors.name = "Medicine name must contain letters.";
+    }
+
+    if (!addForm.price || isNaN(Number(addForm.price)) || Number(addForm.price) <= 0) {
+      newErrors.price = "Enter a valid price greater than 0.";
+    }
+
+    if (addForm.quantity !== "" && (isNaN(Number(addForm.quantity)) || Number(addForm.quantity) < 0)) {
+      newErrors.quantity = "Stock quantity must be 0 or more.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setAddErrors(newErrors);
+      setMessage("Please fix the validation errors.");
+      return;
+    }
+
     setAddLoading(true);
     const res = await apiFetch("/api/pharmacy/medicines", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -614,8 +636,12 @@ export default function PharmacyQueuePage() {
               <form onSubmit={addMedicine} className="grid gap-4 pb-2">
                 <div className="space-y-1">
                   <label className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">Medicine Name *</label>
-                  <input required className={inputCls} value={addForm.name}
-                    onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Paracetamol 500mg" />
+                  <input required className={`${inputCls} ${addErrors.name ? 'border-red-400 bg-red-50 focus:ring-red-400' : ''}`} value={addForm.name}
+                    onChange={e => {
+                      setAddForm(f => ({ ...f, name: e.target.value }));
+                      if (addErrors.name) setAddErrors(prev => ({ ...prev, name: "" }));
+                    }} placeholder="e.g. Paracetamol 500mg" />
+                  {addErrors.name && <p className="text-xs font-semibold text-red-500">{addErrors.name}</p>}
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1">
@@ -629,13 +655,21 @@ export default function PharmacyQueuePage() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">Price (৳) *</label>
-                    <input required type="number" min="0" step="0.01" className={inputCls} value={addForm.price}
-                      onChange={e => setAddForm(f => ({ ...f, price: e.target.value }))} placeholder="0.00" />
+                    <input required type="number" min="0" step="0.01" className={`${inputCls} ${addErrors.price ? 'border-red-400 bg-red-50 focus:ring-red-400' : ''}`} value={addForm.price}
+                      onChange={e => {
+                        setAddForm(f => ({ ...f, price: e.target.value }));
+                        if (addErrors.price) setAddErrors(prev => ({ ...prev, price: "" }));
+                      }} placeholder="0.00" />
+                    {addErrors.price && <p className="text-xs font-semibold text-red-500">{addErrors.price}</p>}
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">Stock Qty</label>
-                    <input type="number" min="0" className={inputCls} value={addForm.quantity}
-                      onChange={e => setAddForm(f => ({ ...f, quantity: e.target.value }))} placeholder="0" />
+                    <input type="number" min="0" className={`${inputCls} ${addErrors.quantity ? 'border-red-400 bg-red-50 focus:ring-red-400' : ''}`} value={addForm.quantity}
+                      onChange={e => {
+                        setAddForm(f => ({ ...f, quantity: e.target.value }));
+                        if (addErrors.quantity) setAddErrors(prev => ({ ...prev, quantity: "" }));
+                      }} placeholder="0" />
+                    {addErrors.quantity && <p className="text-xs font-semibold text-red-500">{addErrors.quantity}</p>}
                   </div>
                   <div className="flex items-center gap-3 pt-5">
                     <input id="rx-req" type="checkbox" className="h-4 w-4 accent-teal-600"

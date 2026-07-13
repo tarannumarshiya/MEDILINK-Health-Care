@@ -11,7 +11,7 @@ import TimeSelect from "@/components/public/TimeSelect";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, UserCheck } from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
-import { validateAppointmentForm } from "@/lib/validate";
+import { validateAppointmentForm, validateBDPhone } from "@/lib/validate";
 
 type BookingSuccess = {
   patient_code: string;
@@ -115,33 +115,49 @@ export default function AppointmentPage() {
       .catch(() => {});
   }, []);
 
-  // Guest-specific client-side validation
-  function validateGuest() {
+  // Unified client-side validation
+  function validateForm() {
     const errs: Record<string, string> = {};
-    if (!form.full_name.trim()) errs.full_name = "Full name is required.";
+    
+    const name = form.full_name.trim();
+    if (!name || name.length < 2) errs.full_name = "Full name must be at least 2 characters.";
+    else if (!/^[A-Za-z\s.'-]+$/.test(name)) errs.full_name = "Full name must contain only letters.";
+
     if (!form.age) errs.age = "Age is required.";
     else { const a = Number(form.age); if (isNaN(a) || a < 1 || a > 120) errs.age = "Enter a valid age (1–120)."; }
+
     if (!form.phone.trim()) errs.phone = "Phone number is required.";
-    if (!form.email.trim()) errs.email = "Email is required.";
-    else if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(form.email)) errs.email = "Enter a valid email.";
+    else if (!validateBDPhone(form.phone)) errs.phone = "Enter a valid Bangladeshi number (e.g. 01XXXXXXXXX).";
+
+    if (!isLoggedIn) {
+      if (!form.email.trim()) errs.email = "Email is required.";
+      else if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(form.email)) errs.email = "Enter a valid email.";
+    }
+
     if (!form.department) errs.department = "Please select a department.";
+    
     if (!form.preferred_date) errs.preferred_date = "Please choose a date.";
+    else {
+      const selected = new Date(form.preferred_date);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (selected < today) errs.preferred_date = "Date cannot be in the past.";
+    }
+
     if (!form.preferred_time) errs.preferred_time = "Please choose a time.";
-    if (!form.reason_for_visit.trim()) errs.reason_for_visit = "Reason for visit is required.";
+    
+    if (!isLoggedIn && !form.reason_for_visit.trim()) {
+      errs.reason_for_visit = "Reason for visit is required.";
+    }
+
     return errs;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!isLoggedIn) {
-      const errs = validateGuest();
-      setFieldErrors(errs);
-      if (Object.keys(errs).length > 0) return;
-    } else {
-      const validationError = validateAppointmentForm(form);
-      if (validationError) { setError(validationError); return; }
-    }
+    const errs = validateForm();
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
 
     setLoading(true);
     setError("");

@@ -28,14 +28,29 @@ function PatientLoginInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({ email: "", password: "" });
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm(p => ({ ...p, [k]: e.target.value }));
+    if (fieldErrors[k]) setFieldErrors(p => ({ ...p, [k]: "" }));
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validationError = validateLoginForm(form.email, form.password);
-    if (validationError) { setError(validationError); return; }
+    setFieldErrors({});
+    const errs: Record<string, string> = {};
+    if (!form.email.trim()) errs.email = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(form.email.trim())) errs.email = "Enter a valid email.";
+    
+    if (!form.password) errs.password = "Password is required.";
+    else if (form.password.length < 6) errs.password = "Password must be at least 6 characters.";
+    
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
+
     setLoading(true); setError("");
     const supabase = createClient();
     const { data, error: err } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password });
@@ -93,7 +108,7 @@ function PatientLoginInner() {
                 <label htmlFor={f.key} className="block mb-1.5 text-xs font-black uppercase tracking-widest text-[var(--ink-2)]">{f.label}</label>
                 {f.key === "password" ? (
                   <div className="relative">
-                    <input id={f.key} type={showPw ? "text" : "password"} required placeholder={f.placeholder} className="input-field pr-11"
+                    <input id={f.key} type={showPw ? "text" : "password"} required placeholder={f.placeholder} className={`input-field pr-11 ${fieldErrors[f.key] ? "border-red-400 bg-red-50 focus:border-red-500" : ""}`}
                       value={form[f.key as keyof typeof form]} onChange={set(f.key)} autoComplete="current-password" />
                     <button type="button" onClick={() => setShowPw(v => !v)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)]">
@@ -101,9 +116,10 @@ function PatientLoginInner() {
                     </button>
                   </div>
                 ) : (
-                  <input id={f.key} type={f.type} required placeholder={f.placeholder} className="input-field"
+                  <input id={f.key} type={f.type} required placeholder={f.placeholder} className={`input-field ${fieldErrors[f.key] ? "border-red-400 bg-red-50 focus:border-red-500" : ""}`}
                     value={form[f.key as keyof typeof form]} onChange={set(f.key)} autoComplete="email" />
                 )}
+                {fieldErrors[f.key] && <p className="mt-1 text-xs font-semibold text-red-500">{fieldErrors[f.key]}</p>}
                 {f.key === "password" && (
                   <div className="flex justify-end mt-1.5">
                     <Link href="/patient/forgot-password"

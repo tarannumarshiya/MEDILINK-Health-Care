@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/apiFetch";
+import { validateBDPhone } from "@/lib/validate";
 import {
   ClipboardList, Calendar, UserCheck, BarChart3, Stethoscope, Loader2, Users, UserPlus,
 } from "lucide-react";
@@ -72,6 +73,7 @@ export default function ReceptionDashboardPage() {
   });
   const [registering, setRegistering] = useState(false);
   const [toggling, setToggling]       = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const supabase = createClient();
@@ -91,6 +93,32 @@ export default function ReceptionDashboardPage() {
 
   async function registerPatient(e: React.FormEvent) {
     e.preventDefault();
+
+    setFieldErrors({});
+    const errs: Record<string, string> = {};
+    const name = regForm.full_name.trim();
+    if (!name || name.length < 2) errs.full_name = "Full name must be at least 2 characters.";
+    else if (!/^[A-Za-z\s.'-]+$/.test(name)) errs.full_name = "Full name must contain only letters.";
+
+    if (regForm.age) {
+      const a = Number(regForm.age);
+      if (isNaN(a) || a < 1 || a > 120) errs.age = "Enter a valid age (1–120).";
+    }
+
+    if (!regForm.phone.trim()) errs.phone = "Phone number is required.";
+    else if (!validateBDPhone(regForm.phone)) errs.phone = "Enter a valid Bangladeshi number (e.g. 01XXXXXXXXX).";
+
+    if (regForm.email && !/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(regForm.email.trim())) {
+      errs.email = "Enter a valid email address.";
+    }
+
+    if (!regForm.department) errs.department = "Please select a department.";
+
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
+
     if (!regForm.full_name || !regForm.phone) return;
     setRegistering(true);
     const res = await apiFetch("/api/reception/check-in", {
@@ -199,31 +227,46 @@ export default function ReceptionDashboardPage() {
               className="rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface)] p-6 pb-10 shadow-[var(--shadow)]">
               <h2 className="text-2xl font-bold text-[var(--ink)]">Register Walk-In Patient</h2>
               <div className="mt-5 grid gap-4">
-                <input
-                  className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] p-3 text-[var(--ink)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-tint)]"
-                  placeholder="Full Name *" value={regForm.full_name}
-                  onChange={e => setRegForm({ ...regForm, full_name: e.target.value })} required />
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
                   <input
-                    className="rounded-[var(--radius-sm)] border border-[var(--line)] p-3 text-[var(--ink)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-tint)]"
-                    placeholder="Age" type="number" value={regForm.age}
-                    onChange={e => setRegForm({ ...regForm, age: e.target.value })} />
-                  <input
-                    className="rounded-[var(--radius-sm)] border border-[var(--line)] p-3 text-[var(--ink)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-tint)]"
-                    placeholder="Phone *" value={regForm.phone}
-                    onChange={e => setRegForm({ ...regForm, phone: e.target.value })} required />
+                    className={`w-full rounded-[var(--radius-sm)] border p-3 text-[var(--ink)] outline-none focus:ring-2 ${fieldErrors.full_name ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200" : "border-[var(--line)] focus:border-[var(--brand)] focus:ring-[var(--brand-tint)]"}`}
+                    placeholder="Full Name *" value={regForm.full_name}
+                    onChange={e => { setRegForm({ ...regForm, full_name: e.target.value }); if (fieldErrors.full_name) setFieldErrors(prev => ({ ...prev, full_name: "" })); }} required />
+                  {fieldErrors.full_name && <p className="text-xs font-semibold text-red-500">{fieldErrors.full_name}</p>}
                 </div>
-                <input
-                  className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] p-3 text-[var(--ink)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-tint)]"
-                  placeholder="Email (optional)" type="email" value={regForm.email}
-                  onChange={e => setRegForm({ ...regForm, email: e.target.value })} />
-                <select
-                  className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] p-3 text-[var(--ink)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-tint)]"
-                  value={regForm.department}
-                  onChange={e => setRegForm({ ...regForm, department: e.target.value })}>
-                  <option value="">Select Department</option>
-                  {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-                </select>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <input
+                      className={`w-full rounded-[var(--radius-sm)] border p-3 text-[var(--ink)] outline-none focus:ring-2 ${fieldErrors.age ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200" : "border-[var(--line)] focus:border-[var(--brand)] focus:ring-[var(--brand-tint)]"}`}
+                      placeholder="Age" type="number" value={regForm.age}
+                      onChange={e => { setRegForm({ ...regForm, age: e.target.value }); if (fieldErrors.age) setFieldErrors(prev => ({ ...prev, age: "" })); }} />
+                    {fieldErrors.age && <p className="text-xs font-semibold text-red-500">{fieldErrors.age}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <input
+                      className={`w-full rounded-[var(--radius-sm)] border p-3 text-[var(--ink)] outline-none focus:ring-2 ${fieldErrors.phone ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200" : "border-[var(--line)] focus:border-[var(--brand)] focus:ring-[var(--brand-tint)]"}`}
+                      placeholder="Phone *" value={regForm.phone}
+                      onChange={e => { setRegForm({ ...regForm, phone: e.target.value }); if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: "" })); }} required />
+                    {fieldErrors.phone && <p className="text-xs font-semibold text-red-500">{fieldErrors.phone}</p>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <input
+                    className={`w-full rounded-[var(--radius-sm)] border p-3 text-[var(--ink)] outline-none focus:ring-2 ${fieldErrors.email ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200" : "border-[var(--line)] focus:border-[var(--brand)] focus:ring-[var(--brand-tint)]"}`}
+                    placeholder="Email (optional)" type="email" value={regForm.email}
+                    onChange={e => { setRegForm({ ...regForm, email: e.target.value }); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: "" })); }} />
+                  {fieldErrors.email && <p className="text-xs font-semibold text-red-500">{fieldErrors.email}</p>}
+                </div>
+                <div className="space-y-1">
+                  <select
+                    className={`w-full rounded-[var(--radius-sm)] border p-3 text-[var(--ink)] outline-none focus:ring-2 ${fieldErrors.department ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200" : "border-[var(--line)] focus:border-[var(--brand)] focus:ring-[var(--brand-tint)]"}`}
+                    value={regForm.department}
+                    onChange={e => { setRegForm({ ...regForm, department: e.target.value }); if (fieldErrors.department) setFieldErrors(prev => ({ ...prev, department: "" })); }}>
+                    <option value="">Select Department *</option>
+                    {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                  </select>
+                  {fieldErrors.department && <p className="text-xs font-semibold text-red-500">{fieldErrors.department}</p>}
+                </div>
                 <textarea
                   className="min-h-24 w-full rounded-[var(--radius-sm)] border border-[var(--line)] p-3 text-[var(--ink)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-tint)]"
                   placeholder="Symptoms / Reason for visit" value={regForm.symptoms}

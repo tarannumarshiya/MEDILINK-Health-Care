@@ -128,6 +128,7 @@ export default function BillingDashboardPage() {
 
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -245,25 +246,32 @@ export default function BillingDashboardPage() {
   async function generateInvoice(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
+    setFieldErrors({});
     setMessage("");
 
-    if (!invForm.patient_name.trim()) {
-      setFormError("Patient name is required.");
-      return;
+    const errs: Record<string, string> = {};
+    const name = invForm.patient_name.trim();
+
+    if (!name) {
+      errs.patient_name = "Patient name is required.";
+    } else if (name.length < 2) {
+      errs.patient_name = "Patient name must contain at least 2 characters.";
+    } else if (!/^[A-Za-z\s.'-]+$/.test(name)) {
+      errs.patient_name = "Patient name must contain only letters.";
     }
 
-    if (invForm.patient_name.trim().length < 2) {
-      setFormError("Patient name must contain at least 2 characters.");
-      return;
-    }
-
+    let hasGlobalError = false;
     if (invoiceTotals.grossTotal <= 0) {
       setFormError("Enter at least one valid charge before generating the invoice.");
-      return;
+      hasGlobalError = true;
     }
 
     if (invoiceTotals.insurance > invoiceTotals.grossTotal) {
-      setFormError("Insurance deduction cannot be greater than the total bill amount.");
+      errs.insurance_deduction = "Insurance deduction cannot be greater than the total bill amount.";
+    }
+
+    if (Object.keys(errs).length > 0 || hasGlobalError) {
+      setFieldErrors(errs);
       return;
     }
 
@@ -535,17 +543,19 @@ export default function BillingDashboardPage() {
                           type={isChargeField ? "number" : "text"}
                           min={isChargeField ? "0" : undefined}
                           step={isChargeField ? "1" : undefined}
-                          className="mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500"
+                          className={`mt-1 w-full rounded-2xl border p-3 text-sm outline-none focus:ring-2 ${fieldErrors[key] ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200" : "border-slate-300 focus:border-teal-500 focus:ring-teal-200"}`}
                           placeholder={placeholder}
                           value={invForm[key as keyof InvoiceFormState]}
                           onChange={(e) => {
                             setFormError("");
+                            if (fieldErrors[key]) setFieldErrors(prev => ({ ...prev, [key]: "" }));
                             setInvForm((p) => ({
                               ...p,
                               [key]: e.target.value,
                             }));
                           }}
                         />
+                        {fieldErrors[key] && <p className="mt-1 text-xs font-semibold text-red-500">{fieldErrors[key]}</p>}
                       </div>
                     );
                   })}
