@@ -69,9 +69,12 @@ export default function AdminDashboardPage() {
   const [contacts,       setContacts]       = useState<ContactMessage[]>([]);
 
   const [deptForm,   setDeptForm]   = useState({ name: "", description: "" });
+  const [deptErrors, setDeptErrors] = useState<Record<string, string>>({});
+  
   const [doctorForm, setDoctorForm] = useState({
     email: "", department_id: "", qualification: "", experience_years: "", consultation_fee: "",
   });
+  const [doctorErrors, setDoctorErrors] = useState<Record<string, string>>({});
 
   /* ── session-timeout setting ── */
   const [timeoutMin,    setTimeoutMin]    = useState<number>(DEFAULT_TIMEOUT_MIN);
@@ -150,6 +153,20 @@ export default function AdminDashboardPage() {
 
   async function createDept(e: React.FormEvent) {
     e.preventDefault();
+    setDeptErrors({});
+    const newErrors: Record<string, string> = {};
+    if (!deptForm.name.trim() || deptForm.name.trim().length < 2) {
+      newErrors.name = "Department name must be at least 2 characters.";
+    } else if (!/^[A-Za-z\s]+$/.test(deptForm.name.trim())) {
+      newErrors.name = "Department name must contain only letters.";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setDeptErrors(newErrors);
+      setMsg("Please fix the validation errors.");
+      return;
+    }
+
     const res = await apiFetch("/api/admin/departments", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(deptForm),
@@ -171,6 +188,31 @@ export default function AdminDashboardPage() {
 
   async function createDoctor(e: React.FormEvent) {
     e.preventDefault();
+    setDoctorErrors({});
+    const newErrors: Record<string, string> = {};
+    
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(doctorForm.email.trim())) {
+      newErrors.email = "Enter a valid email address.";
+    }
+    if (!doctorForm.department_id) {
+      newErrors.department_id = "Department is required.";
+    }
+    if (doctorForm.qualification && !/^[A-Za-z\s.,-]+$/.test(doctorForm.qualification.trim())) {
+      newErrors.qualification = "Qualification must contain only letters and basic punctuation.";
+    }
+    if (doctorForm.experience_years && (isNaN(Number(doctorForm.experience_years)) || Number(doctorForm.experience_years) < 0 || Number(doctorForm.experience_years) > 80)) {
+      newErrors.experience_years = "Enter a valid number of years.";
+    }
+    if (doctorForm.consultation_fee && (isNaN(Number(doctorForm.consultation_fee)) || Number(doctorForm.consultation_fee) < 0)) {
+      newErrors.consultation_fee = "Enter a valid fee amount.";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setDoctorErrors(newErrors);
+      setMsg("Please fix the validation errors.");
+      return;
+    }
+
     const res = await apiFetch("/api/admin/doctors", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(doctorForm),
@@ -420,9 +462,13 @@ export default function AdminDashboardPage() {
             <form onSubmit={createDept} className="grid gap-4">
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-500">Name</label>
-                <input required className="mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500"
+                <input required className={`mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 ${deptErrors.name ? 'border-red-400 focus:border-red-400 bg-red-50' : ''}`}
                   placeholder="e.g. Cardiology" value={deptForm.name}
-                  onChange={e => setDeptForm({ ...deptForm, name: e.target.value })} />
+                  onChange={e => {
+                    setDeptForm({ ...deptForm, name: e.target.value });
+                    if (deptErrors.name) setDeptErrors(prev => ({ ...prev, name: "" }));
+                  }} />
+                {deptErrors.name && <p className="mt-1 text-xs font-semibold text-red-500">{deptErrors.name}</p>}
               </div>
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-500">Description</label>
@@ -467,23 +513,30 @@ export default function AdminDashboardPage() {
                 <input
                   required
                   type="email"
-                  className="mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500"
+                  className={`mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 ${doctorErrors.email ? 'border-red-400 focus:border-red-400 bg-red-50' : ''}`}
                   placeholder="doctor@hospital.com"
                   value={doctorForm.email}
-                  onChange={e => setDoctorForm({ ...doctorForm, email: e.target.value })}
+                  onChange={e => {
+                    setDoctorForm({ ...doctorForm, email: e.target.value });
+                    if (doctorErrors.email) setDoctorErrors(prev => ({ ...prev, email: "" }));
+                  }}
                 />
-                <p className="mt-1 text-xs text-slate-400">Must match a staff account with DOCTOR role in User Mgmt</p>
+                {doctorErrors.email ? <p className="mt-1 text-xs font-semibold text-red-500">{doctorErrors.email}</p> : <p className="mt-1 text-xs text-slate-400">Must match a staff account with DOCTOR role in User Mgmt</p>}
               </div>
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-slate-500">Department</label>
-                <select required className="mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500"
+                <select required className={`mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 ${doctorErrors.department_id ? 'border-red-400 focus:border-red-400 bg-red-50' : ''}`}
                   value={doctorForm.department_id}
-                  onChange={e => setDoctorForm({ ...doctorForm, department_id: e.target.value })}>
+                  onChange={e => {
+                    setDoctorForm({ ...doctorForm, department_id: e.target.value });
+                    if (doctorErrors.department_id) setDoctorErrors(prev => ({ ...prev, department_id: "" }));
+                  }}>
                   <option value="">Select Department</option>
                   {departments.filter(d => d.is_active).map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+                {doctorErrors.department_id && <p className="mt-1 text-xs font-semibold text-red-500">{doctorErrors.department_id}</p>}
               </div>
               {[
                 { label: "Qualification", field: "qualification", placeholder: "e.g. MBBS, MD", type: "text" },
@@ -492,9 +545,13 @@ export default function AdminDashboardPage() {
               ].map(({ label, field, placeholder, type }) => (
                 <div key={field}>
                   <label className="text-xs font-black uppercase tracking-widest text-slate-500">{label}</label>
-                  <input type={type} className="mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500"
+                  <input type={type} className={`mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 ${doctorErrors[field] ? 'border-red-400 focus:border-red-400 bg-red-50' : ''}`}
                     placeholder={placeholder} value={doctorForm[field as keyof typeof doctorForm]}
-                    onChange={e => setDoctorForm({ ...doctorForm, [field]: e.target.value })} />
+                    onChange={e => {
+                      setDoctorForm({ ...doctorForm, [field]: e.target.value });
+                      if (doctorErrors[field]) setDoctorErrors(prev => ({ ...prev, [field]: "" }));
+                    }} />
+                  {doctorErrors[field] && <p className="mt-1 text-xs font-semibold text-red-500">{doctorErrors[field]}</p>}
                 </div>
               ))}
               <button className="rounded-2xl bg-slate-950 p-3 font-black text-white hover:bg-slate-800">Add Doctor</button>

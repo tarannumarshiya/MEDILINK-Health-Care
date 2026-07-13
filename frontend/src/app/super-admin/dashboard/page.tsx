@@ -356,6 +356,7 @@ export default function SuperAdminDashboardPage() {
     role: "DOCTOR",
   });
 
+  const [staffErrors, setStaffErrors] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -440,6 +441,29 @@ export default function SuperAdminDashboardPage() {
 
   async function createStaff(e: React.FormEvent) {
     e.preventDefault();
+
+    setStaffErrors({});
+    const newErrors: Record<string, string> = {};
+
+    if (!staffForm.full_name.trim() || staffForm.full_name.trim().length < 2) {
+      newErrors.full_name = "Full name must be at least 2 characters.";
+    } else if (!/^[A-Za-z\s.'-]+$/.test(staffForm.full_name.trim())) {
+      newErrors.full_name = "Full name must contain only letters.";
+    }
+
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(staffForm.email.trim())) {
+      newErrors.email = "Enter a valid email address.";
+    }
+
+    if (staffForm.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setStaffErrors(newErrors);
+      setMsg("Please fix the validation errors.");
+      return;
+    }
 
     setCreating(true);
     setMsg("");
@@ -841,16 +865,18 @@ export default function SuperAdminDashboardPage() {
                     required
                     type={type}
                     minLength={key === "password" ? 6 : undefined}
-                    className="mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500"
+                    className={`mt-1 w-full rounded-2xl border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 ${staffErrors[key] ? 'border-red-400 focus:border-red-400 bg-red-50' : ''}`}
                     placeholder={placeholder}
                     value={staffForm[key as keyof typeof staffForm]}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setStaffForm({
                         ...staffForm,
                         [key]: e.target.value,
-                      })
-                    }
+                      });
+                      if (staffErrors[key]) setStaffErrors(prev => ({ ...prev, [key]: "" }));
+                    }}
                   />
+                  {staffErrors[key] && <p className="mt-1 text-xs font-semibold text-red-500">{staffErrors[key]}</p>}
                 </div>
               ))}
 
