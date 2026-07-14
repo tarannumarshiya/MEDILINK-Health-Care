@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
-import ReminderModal from "@/components/pharmacy/ReminderModal";
 import { usePharmacyCart } from "@/context/PharmacyCartContext";
 import {
   Bell,
@@ -138,11 +137,9 @@ function catColor(cat: string) {
 function MedicineCard({
   med,
   onAdd,
-  onReminder,
 }: {
   med: Medicine;
   onAdd: (m: Medicine) => void;
-  onReminder: (m: Medicine) => void;
 }) {
   const [imgError, setImgError] = useState(false);
   const inStock = med.quantity > 0;
@@ -196,27 +193,18 @@ function MedicineCard({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="mt-2">
             <button
               disabled={!inStock}
               onClick={() => onAdd(med)}
-              className="flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
               style={{
                 background: "var(--gradient-primary)",
                 boxShadow: "var(--shadow-glow)",
               }}
             >
               <Plus className="h-4 w-4" />
-              Add
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onReminder(med)}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-border px-3 py-2.5 text-sm font-bold text-foreground transition hover:bg-primary/10 hover:text-primary"
-            >
-              <Bell className="h-4 w-4" />
-              Reminder
+              Add to Cart
             </button>
           </div>
         </div>
@@ -232,8 +220,6 @@ export default function PharmacyPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [toast, setToast] = useState<string | null>(null);
-  const [reminderOpen, setReminderOpen] = useState(false);
-  const [selectedMedicine, setSelectedMedicine] = useState<Medicine | null>(null);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -301,11 +287,6 @@ export default function PharmacyPage() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(`✓ ${med.name} added to cart`);
     toastTimer.current = setTimeout(() => setToast(null), 2500);
-  }
-
-  function handleOpenReminder(med: Medicine) {
-    setSelectedMedicine(med);
-    setReminderOpen(true);
   }
 
   function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -449,7 +430,6 @@ export default function PharmacyPage() {
                   key={med.id}
                   med={med}
                   onAdd={handleAddToCart}
-                  onReminder={handleOpenReminder}
                 />
               ))}
             </div>
@@ -493,15 +473,6 @@ export default function PharmacyPage() {
       </section>
 
       <PublicFooter />
-
-      <ReminderModal
-        open={reminderOpen}
-        onClose={() => {
-          setReminderOpen(false);
-          setSelectedMedicine(null);
-        }}
-        medicine={selectedMedicine}
-      />
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl" style={{ background: "var(--gradient-primary)", boxShadow: "var(--shadow-glow)" }}>

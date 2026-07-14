@@ -153,7 +153,7 @@ router.post("/create-qr", async (req: Request, res: Response) => {
 
   try {
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-    const rzpRes = await fetch("https://api.razorpay.com/v1/payments/qr-codes", {
+    const rzpRes = await fetch("https://api.razorpay.com/v1/payments/qr_codes", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -193,7 +193,7 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
 
   try {
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-    const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/qr-codes/${qrId}/payments`, {
+    const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments`, {
       headers: { Authorization: `Basic ${auth}` },
     });
 
