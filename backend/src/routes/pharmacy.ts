@@ -25,7 +25,6 @@ router.get("/medicines", async (req: Request, res: Response) => {
     .select(
       "id, name, description, category, price, quantity, image_url, requires_prescription, is_available"
     )
-    .eq("is_available", true)
     .order("name", { ascending: true });
 
   let isAdmin = false;
@@ -268,6 +267,11 @@ router.post("/orders", async (req: Request, res: Response) => {
     }
 
     if (itemsError) {
+      if (itemsError.message.includes("pharmacy_order_items_medicine_id_fkey")) {
+        // Delete the orphaned order that was created
+        await serviceClient.from("pharmacy_orders").delete().eq("id", order.id);
+        return void res.status(400).json({ error: "One or more medicines in your cart are no longer available in the database. Please remove them from your cart and try again." });
+      }
       return void res.status(500).json({ error: itemsError.message });
     }
 

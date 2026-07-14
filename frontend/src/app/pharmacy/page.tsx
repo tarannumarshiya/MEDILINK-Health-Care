@@ -187,24 +187,24 @@ function MedicineCard({
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="font-display text-xl font-extrabold text-primary">৳{med.price}</p>
-              <p className={`text-xs font-semibold ${inStock ? "text-mint" : "text-red-500"}`}>
-                {inStock ? `${med.quantity} in stock` : "Out of stock"}
+              <p className={`text-xs font-semibold ${med.is_available ? (inStock ? "text-mint" : "text-red-500") : "text-gray-500"}`}>
+                {!med.is_available ? "Not Available" : (inStock ? `${med.quantity} in stock` : "Out of stock")}
               </p>
             </div>
           </div>
 
           <div className="mt-2">
             <button
-              disabled={!inStock}
+              disabled={!med.is_available || !inStock}
               onClick={() => onAdd(med)}
               className="flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
               style={{
-                background: "var(--gradient-primary)",
-                boxShadow: "var(--shadow-glow)",
+                background: (!med.is_available || !inStock) ? "#64748b" : "var(--gradient-primary)",
+                boxShadow: (!med.is_available || !inStock) ? "none" : "var(--shadow-glow)",
               }}
             >
               <Plus className="h-4 w-4" />
-              Add to Cart
+              {med.is_available ? "Add to Cart" : "Unavailable"}
             </button>
           </div>
         </div>
