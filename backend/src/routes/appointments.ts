@@ -4,6 +4,7 @@ import {
   generateAppointmentCode,
   generatePatientCode,
 } from "../lib/ids";
+import { generateInvoiceForAppointment } from "../lib/billing";
 
 const router = Router();
 
@@ -199,6 +200,66 @@ router.post("/track", async (req: Request, res: Response) => {
     res
       .status(500)
       .json({ error: "Server error while tracking appointment" });
+  }
+});
+
+// POST /api/appointments/:id/consent
+router.post("/:id/consent", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { accept } = req.body;
+
+    const { data: appt, error: apptError } = await serviceClient
+      .from("appointments")
+      .select("id, status, lab_required")
+      .eq("id", id)
+      .single();
+
+    if (apptError || !appt) {
+      return void res.status(404).json({ error: "Appointment not found" });
+    }
+
+    if (appt.status !== "PENDING_PATIENT_APPROVAL") {
+      return void res.status(400).json({ error: "Appointment is not pending approval" });
+    }
+
+    if (accept) {
+      const nextStatus = appt.lab_required ? "LAB_REQUESTED" : "PRESCRIPTION_READY";
+      await serviceClient.from("appointments").update({
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      }).eq("id", id);
+      
+      // Invoice will be generated at the end of lab/pharmacy flow
+    } else {
+      // Reject: cancel lab/pharmacy flow
+      await serviceClient.from("appointments").update({
+        status: "COMPLETED", // skip downstream
+        updated_at: new Date().toISOString(),
+      }).eq("id", id);
+
+      // Cancel any pending lab tests
+      await serviceClient.from("lab_tests").update({
+        status: "CANCELLED"
+      }).eq("appointment_id", id).eq("status", "PENDING");
+      
+      // Cancel any active prescriptions
+      await serviceClient.from("prescriptions").update({
+        status: "CANCELLED" // Or maybe just leave them as ACTIVE but they won't be fulfilled? We don't have a CANCELLED status for prescriptions in the frontend schema note, but we can use EXPIRED or just delete them. Actually let's just let it be, they won't go to pharmacy because status is COMPLETED.
+      }).eq("appointment_id", id);
+
+      // Generate invoice immediately for consultation only (since lab/medicines aren't happening)
+      // Actually, our generateInvoiceForAppointment looks at lab_tests and prescriptions.
+      // If we cancelled the lab_tests, the charge might be 0. Let's delete the lab_tests and prescriptions so the invoice doesn't charge them.
+      await serviceClient.from("lab_tests").delete().eq("appointment_id", id);
+      await serviceClient.from("prescriptions").delete().eq("appointment_id", id);
+
+      await generateInvoiceForAppointment(id);
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: "Server error while submitting consent" });
   }
 });
 

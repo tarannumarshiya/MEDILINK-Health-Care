@@ -251,6 +251,32 @@ export default function PatientDashboardPage() {
     setTeleSubmitting(false);
   }
 
+  async function handleConsent(appointmentId: string, accept: boolean) {
+    if (!confirm(`Are you sure you want to ${accept ? "accept" : "reject"} the prescribed lab tests and medicines?`)) return;
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}/consent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accept })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to submit consent");
+        return;
+      }
+      // Re-fetch appointments to update state
+      const supabase = createClient();
+      const { data: appts } = await supabase
+        .from("appointments")
+        .select("*")
+        .eq("patient_id", patient?.id)
+        .order("created_at", { ascending: false });
+      setAppointments(appts ?? []);
+    } catch {
+      alert("Something went wrong");
+    }
+  }
+
   async function markNotificationRead(id: string) {
     await apiFetch("/api/notifications/read", {
       method: "PATCH",
@@ -956,6 +982,45 @@ export default function PatientDashboardPage() {
             {notifications.length === 0 && <Empty text="No notifications yet."/>}
           </div>
         </Panel>
+      )}
+
+      {/* ── CONSENT MODAL ── */}
+      {appointments.some(a => a.status === "PENDING_PATIENT_APPROVAL") && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-8 shadow-2xl">
+            <div className="mb-6 flex items-center gap-3 text-amber-600">
+              <Activity size={32} />
+              <h2 className="text-2xl font-black">Doctor's Recommendations</h2>
+            </div>
+            {appointments.filter(a => a.status === "PENDING_PATIENT_APPROVAL").map(appt => (
+              <div key={appt.id} className="mb-6">
+                <p className="text-lg font-bold text-slate-800">
+                  Appointment: {appt.department}
+                </p>
+                <p className="mt-2 text-slate-600">
+                  The doctor has prescribed {appt.lab_required ? "lab tests" : ""}
+                  {appt.lab_required && appt.prescription_text ? " and " : ""}
+                  {appt.prescription_text ? "medicines" : ""}. 
+                  Would you like to proceed with our hospital's facilities for these services?
+                </p>
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    onClick={() => handleConsent(appt.id, true)}
+                    className="flex-1 rounded-2xl bg-amber-600 py-3 font-black text-white hover:bg-amber-700"
+                  >
+                    Accept & Proceed
+                  </button>
+                  <button
+                    onClick={() => handleConsent(appt.id, false)}
+                    className="flex-1 rounded-2xl border-2 border-slate-200 py-3 font-black text-slate-600 hover:bg-slate-50"
+                  >
+                    Reject Services
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ── BILL POPUP MODAL (quick alert style) ── */}

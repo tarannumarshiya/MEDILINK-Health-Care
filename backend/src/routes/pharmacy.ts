@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { createRequestClient, serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { generateInvoiceForAppointment } from "../lib/billing";
 
 const router = Router();
 
@@ -401,8 +402,25 @@ router.patch(
     const { data: rx } = await supabase
       .from("prescriptions").select("appointment_id").eq("id", prescription_id).single();
     if (rx?.appointment_id) {
+      let apptStatus = "PHARMACY_FULFILLED";
+
+      // Check if lab is still pending
+      const { data: pendingLabs } = await serviceClient
+        .from("lab_tests")
+        .select("id")
+        .eq("appointment_id", rx.appointment_id)
+        .in("status", ["PENDING", "COLLECTED", "PROCESSING"]);
+
+      if (!pendingLabs || pendingLabs.length === 0) {
+        // No pending labs, so generate the final invoice
+        const invoice = await generateInvoiceForAppointment(rx.appointment_id);
+        if (invoice) {
+          apptStatus = "INVOICE_GENERATED";
+        }
+      }
+
       await serviceClient.from("appointments").update({
-        status: "PHARMACY_FULFILLED",
+        status: apptStatus,
         updated_at: new Date().toISOString(),
       }).eq("id", rx.appointment_id);
 

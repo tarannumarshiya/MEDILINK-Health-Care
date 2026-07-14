@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { generateInvoiceForAppointment } from "../lib/billing";
 
 const router = Router();
 const LAB_ROLES = ["TESTER", "LAB_TECHNICIAN", "LAB_ADMIN", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"];
@@ -88,10 +89,31 @@ router.patch("/update-status", requireAuth, requireRole(LAB_ROLES), async (req: 
 
     // Sync appointment status
     if (data?.appointment_id) {
-      const apptStatus =
+      let apptStatus =
         status === "PROCESSING" ? "LAB_PROCESSING" :
         status === "COMPLETED"  ? "LAB_COMPLETED"  :
         status === "VERIFIED"   ? "LAB_COMPLETED"  : "LAB_REQUESTED";
+      
+      // If Lab is completed, check if pharmacy is still pending
+      if (status === "COMPLETED" || status === "VERIFIED") {
+        const { data: activePrescriptions } = await serviceClient
+          .from("prescriptions")
+          .select("id")
+          .eq("appointment_id", data.appointment_id)
+          .eq("status", "ACTIVE");
+
+        if (!activePrescriptions || activePrescriptions.length === 0) {
+          // No active pharmacy items, so we can generate the final invoice
+          const invoice = await generateInvoiceForAppointment(data.appointment_id);
+          if (invoice) {
+            apptStatus = "INVOICE_GENERATED"; // Override status
+          }
+        } else {
+          // Pharmacy is still pending, so advance appointment status to PHARMACY_PENDING
+          apptStatus = "PHARMACY_PENDING";
+        }
+      }
+
       await serviceClient
         .from("appointments")
         .update({ status: apptStatus, updated_at: new Date().toISOString() })

@@ -40,6 +40,7 @@ const statusSteps = [
   "PENDING",
   "APPROVED",
   "IN_PROGRESS",
+  "PENDING_PATIENT_APPROVAL",
   "PRESCRIPTION_READY",
   "LAB_REQUESTED",
   "LAB_PROCESSING",
@@ -94,6 +95,32 @@ export default function PatientTrackPage() {
       setMessage("Something went wrong while tracking.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleConsent(appointmentId: string, accept: boolean) {
+    if (!confirm(`Are you sure you want to ${accept ? "accept" : "reject"} the prescribed lab tests and medicines?`)) return;
+
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}/consent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accept })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to submit consent");
+        return;
+      }
+      
+      // Update local state to reflect change (e.g. tracking again or updating status)
+      setAppointments(prev => prev.map(a => 
+        a.id === appointmentId 
+          ? { ...a, status: accept ? (a.lab_required ? "LAB_REQUESTED" : "PRESCRIPTION_READY") : "COMPLETED" } 
+          : a
+      ));
+    } catch {
+      alert("Something went wrong");
     }
   }
 
@@ -316,6 +343,34 @@ export default function PatientTrackPage() {
                     <p className="mt-3 whitespace-pre-wrap font-bold text-slate-800">
                       {appointment.prescription_text}
                     </p>
+                  </div>
+                )}
+
+                {appointment.status === "PENDING_PATIENT_APPROVAL" && (
+                  <div className="mt-6 rounded-3xl border-2 border-amber-200 bg-amber-50 p-6">
+                    <h3 className="text-lg font-black text-amber-900">
+                      Doctor's Recommendations Pending Approval
+                    </h3>
+                    <p className="mt-2 text-amber-800">
+                      The doctor has prescribed {appointment.lab_required ? "lab tests" : ""}
+                      {appointment.lab_required && appointment.prescription_text ? " and " : ""}
+                      {appointment.prescription_text ? "medicines" : ""}. 
+                      Would you like to proceed with our hospital's facilities for these services?
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-4">
+                      <button
+                        onClick={() => handleConsent(appointment.id, true)}
+                        className="rounded-2xl bg-amber-600 px-6 py-3 font-black text-white hover:bg-amber-700"
+                      >
+                        Accept & Proceed
+                      </button>
+                      <button
+                        onClick={() => handleConsent(appointment.id, false)}
+                        className="rounded-2xl border-2 border-amber-600 px-6 py-3 font-black text-amber-700 hover:bg-amber-100"
+                      >
+                        Reject Services
+                      </button>
+                    </div>
                   </div>
                 )}
 
