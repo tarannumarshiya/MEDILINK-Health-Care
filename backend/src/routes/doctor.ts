@@ -2,14 +2,13 @@ import { Router, Request, Response } from "express";
 import { createRequestClient, serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceCode } from "../lib/ids";
-
 const router = Router();
 
-import { generateInvoiceCode } from "../lib/ids";
-import { LAB_CHARGE_PER_REQUEST, MEDICINE_CHARGE_PER_QTY, generateInvoiceForAppointment } from "../lib/billing";
+const LAB_CHARGE_PER_REQUEST = 200;
+const MEDICINE_CHARGE_PER_QTY = 50;
 
 const APPT_SELECT = `id, appointment_code, patient_id, patient_name, patient_phone,
-  patient_email, department, doctor_id, preferred_date, preferred_time,
+  patient_email, department, department_id, doctor_id, preferred_date, preferred_time,
   symptoms, status, prescription_text, lab_required, lab_report_url, created_at, updated_at`;
 
 const DOCTOR_ROLES = ["DOCTOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN", "DEPARTMENT_ADMIN"];
@@ -190,51 +189,17 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       if (itemsError)
         return void res.status(500).json({ error: itemsError.message });
 
-      // 3. Update appointment status based on consent requirement
-      let nextStatus = wantsLab ? "LAB_REQUESTED" : "PRESCRIPTION_READY";
-      let requireConsent = true;
+      // 3. Update appointment status
+      const nextStatus = wantsLab ? "LAB_REQUESTED" : "PRESCRIPTION_READY";
 
-      // Check if patient is a guest
-      if (!appointment.patient_id) {
-        requireConsent = false;
-      } else {
-        const { data: patient } = await serviceClient
-          .from("patients")
-          .select("profile_id")
-          .eq("id", appointment.patient_id)
-          .single();
-        if (!patient || !patient.profile_id) {
-          requireConsent = false;
-        }
-      }
+      await serviceClient.from("appointments").update({
+        status: nextStatus,
+        prescription_text: notes,
+        lab_required: wantsLab,
+        updated_at: new Date().toISOString(),
+      }).eq("id", appointmentId);
 
-      const hasItemsToApprove = wantsLab || medicines.length > 0;
-
-      if (!hasItemsToApprove || !requireConsent) {
-        // If guest or no items, proceed directly
-        await serviceClient.from("appointments").update({
-          status: nextStatus,
-          prescription_text: notes,
-          lab_required: wantsLab,
-          updated_at: new Date().toISOString(),
-        }).eq("id", appointmentId);
-        
-        // If guest, generate invoice immediately as they skip consent UI
-        if (!requireConsent) {
-           await generateInvoiceForAppointment(appointmentId);
-           // After generating invoice, the status is INVOICE_GENERATED.
-        }
-      } else {
-        // Require patient consent
-        await serviceClient.from("appointments").update({
-          status: "PENDING_PATIENT_APPROVAL",
-          prescription_text: notes,
-          lab_required: wantsLab,
-          updated_at: new Date().toISOString(),
-        }).eq("id", appointmentId);
-      }
-
-      // 4. If lab requested, create a lab_test record (it sits PENDING until accepted/paid)
+      // 4. If lab requested, create a lab_test record
       if (wantsLab) {
         const testName = labTestName?.trim() || "General Lab Test";
         await serviceClient.from("lab_tests").insert({
@@ -245,6 +210,33 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
           status: "PENDING",
           priority: "ROUTINE",
         });
+      }
+
+      // 5. Auto-generate invoice
+      const consultationCharge = Number(doctor.consultation_fee) || 0;
+      const labCharge = wantsLab ? LAB_CHARGE_PER_REQUEST : 0;
+      const medicineCharge = medicines.reduce(
+        (sum, m) => sum + (Number(m.quantity) || 1) * MEDICINE_CHARGE_PER_QTY, 0
+      );
+      const total = consultationCharge + labCharge + medicineCharge;
+
+      const { data: invoice, error: invoiceError } = await serviceClient
+        .from("invoices")
+        .insert({
+          invoice_code: generateInvoiceCode(),
+          patient_id: appointment.patient_id ?? null,
+          appointment_id: appointmentId,
+          patient_name: appointment.patient_name ?? null,
+          consultation_charge: consultationCharge,
+          lab_charge: labCharge,
+          medicine_charge: medicineCharge,
+          insurance_deduction: 0,
+          total,
+          status: "UNPAID",
+        }).select().single();
+
+      if (invoiceError) {
+        console.error("Invoice auto-generation failed:", invoiceError.message);
       }
 
       // 6. Audit log
