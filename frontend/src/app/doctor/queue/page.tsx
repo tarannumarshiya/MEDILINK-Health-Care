@@ -557,7 +557,7 @@ export default function DoctorQueuePage() {
     }
     setAppointments(prev => prev.map(a => (a.id === id ? { ...a, status: "IN_PROGRESS" } : a)));
     setMessage("Consultation started.");
-    setActiveTab("inProgress");
+    setActiveTab("inprogress");
     setActionId(null);
   }
 
