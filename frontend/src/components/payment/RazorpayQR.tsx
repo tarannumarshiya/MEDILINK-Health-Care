@@ -235,13 +235,21 @@ export default function RazorpayQR({
               {state === "error" && (
                 <div className="flex flex-col items-center gap-3 py-6">
                   <p className="text-center text-sm font-bold text-red-600">{error}</p>
-                  <button
-                    onClick={generateQR}
-                    className="inline-flex items-center gap-2 rounded-full bg-violet-600 px-5 py-2.5 text-sm font-black text-white hover:bg-violet-500 transition"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Generate New QR
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={generateQR}
+                      className="inline-flex items-center gap-2 rounded-full bg-violet-600 px-5 py-2.5 text-sm font-black text-white hover:bg-violet-500 transition"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Generate New QR
+                    </button>
+                    <button
+                      onClick={handleClose}
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-200 px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-300 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

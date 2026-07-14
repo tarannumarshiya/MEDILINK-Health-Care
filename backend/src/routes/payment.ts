@@ -152,6 +152,16 @@ router.post("/create-qr", async (req: Request, res: Response) => {
     return void res.status(400).json({ error: "Invalid amount for QR generation" });
 
   try {
+    const mode = process.env.PAYMENTS_MODE ?? "mock";
+    if (mode === "mock") {
+      return void res.json({
+        success: true,
+        qrId: "mock_qr_" + Date.now(),
+        imageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=mock@upi&pn=Mock%20Payment&am=${amount}`,
+        amount
+      });
+    }
+
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
     const rzpRes = await fetch("https://api.razorpay.com/v1/payments/qr_codes", {
       method: "POST",
@@ -192,6 +202,30 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
     return void res.status(500).json({ error: "Razorpay keys not configured" });
 
   try {
+    const mode = process.env.PAYMENTS_MODE ?? "mock";
+    if (mode === "mock") {
+      let invoice_id = null;
+      if (invoiceCode) {
+        const { data: inv } = await serviceClient
+          .from("invoices").select("id").eq("invoice_code", invoiceCode).maybeSingle();
+        if (inv) invoice_id = inv.id;
+      }
+      await serviceClient.from("payments").insert({
+        invoice_id,
+        invoice_code: invoiceCode ?? null,
+        amount: amount ?? 0,
+        method: "mock_qr",
+        status: "COMPLETED",
+        razorpay_payment_id: "mock_payment_" + Date.now(),
+      });
+      if (purpose === "pharmacy_order" && referenceId) {
+        await serviceClient.from("pharmacy_public_orders").update({ status: "CONFIRMED" }).eq("id", referenceId);
+      } else if (invoiceCode) {
+        await serviceClient.from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
+      }
+      return void res.json({ verified: true, paymentId: "mock_payment_" + Date.now() });
+    }
+
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
     const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments`, {
       headers: { Authorization: `Basic ${auth}` },

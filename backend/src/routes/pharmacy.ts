@@ -212,7 +212,7 @@ router.post("/orders", async (req: Request, res: Response) => {
         delivery_type: delivery_type ?? "pickup",
         notes: notes ?? null,
         prescription_url: prescription_image ?? null,
-        status: "Pending",
+        status: "PENDING",
         total,
       })
       .select("*")
@@ -325,6 +325,53 @@ router.post("/orders/track", async (req: Request, res: Response) => {
     res.status(500).json({ error: message });
   }
 });
+
+router.get(
+  "/orders",
+  requireAuth,
+  requireRole(PHARMACY_ROLES),
+  async (req: Request, res: Response) => {
+    const supabase = createRequestClient(req);
+    const { data, error } = await supabase
+      .from("pharmacy_orders")
+      .select(`
+        id, patient_name, patient_phone, delivery_type, status, total, notes, prescription_url, created_at,
+        pharmacy_order_items ( id, medicine_name, price, quantity )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) return void res.status(500).json({ error: error.message });
+    // Map prescription_url to prescription_image for frontend compatibility
+    const mapped = (data || []).map(order => ({
+      ...order,
+      prescription_image: order.prescription_url,
+      items: order.pharmacy_order_items
+    }));
+    res.json({ success: true, orders: mapped });
+  }
+);
+
+router.patch(
+  "/orders",
+  requireAuth,
+  requireRole(PHARMACY_ROLES),
+  async (req: Request, res: Response) => {
+    const supabase = createRequestClient(req);
+    const { id, status } = req.body;
+
+    if (!id || !status) {
+      return void res.status(400).json({ error: "id and status required" });
+    }
+
+    const { error } = await supabase
+      .from("pharmacy_orders")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) return void res.status(500).json({ error: error.message });
+    res.json({ success: true });
+  }
+);
 // ─────────────────────────────────────────────────────────────────────────────
 // PRESCRIPTION QUEUE  →  /api/pharmacy/queue  (protected)
 // ─────────────────────────────────────────────────────────────────────────────

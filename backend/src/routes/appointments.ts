@@ -158,6 +158,25 @@ router.post("/create", async (req: Request, res: Response) => {
       });
     }
 
+    if (department.toLowerCase() === "telemedicine") {
+      let scheduled_at = new Date().toISOString();
+      if (preferred_date) {
+        try {
+          const dateStr = `${preferred_date}T${preferred_time || "00:00"}:00`;
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) scheduled_at = d.toISOString();
+        } catch (e) {}
+      }
+      
+      await serviceClient.from("telemedicine_sessions").insert({
+        appointment_id: appointment.id,
+        patient_id: patient.id,
+        scheduled_at,
+        status: "PENDING",
+        reason: symptoms ?? description ?? "appointment for consultation"
+      });
+    }
+
     res.json({
       success: true,
       patient,

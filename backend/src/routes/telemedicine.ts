@@ -287,7 +287,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       doctor_id,
       patient_id,
       scheduled_at,
-    } = req.body as CreateSessionBody;
+      reason,
+    } = req.body as CreateSessionBody & { reason?: string };
 
     if (!scheduled_at) {
       return void res.status(400).json({
@@ -304,6 +305,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         patient_id: patient_id ?? null,
         scheduled_at,
         status: "SCHEDULED",
+        reason: reason ?? null
       })
       .select()
       .single();
@@ -378,6 +380,19 @@ router.patch(
           success: false,
           error: error.message,
         });
+      }
+
+      // Sync status to the original appointment
+      if (data.appointment_id) {
+        let appointmentStatus = "PENDING";
+        if (normalizedStatus === "SCHEDULED" || normalizedStatus === "ONGOING") appointmentStatus = "APPROVED";
+        else if (normalizedStatus === "COMPLETED") appointmentStatus = "COMPLETED";
+        else if (normalizedStatus === "CANCELLED" || normalizedStatus === "MISSED") appointmentStatus = "REJECTED"; // or CANCELLED if supported
+        
+        await serviceClient
+          .from("appointments")
+          .update({ status: appointmentStatus })
+          .eq("id", data.appointment_id);
       }
 
       return void res.json({

@@ -233,6 +233,7 @@ export default function PatientDashboardPage() {
       patient_id: patient.id,
       scheduled_at: localDate.toISOString(),
       status: "SCHEDULED",
+      reason: teleForm.reason || "appointment for consultation"
     });
     if (error) {
       console.error("Telemedicine Request Error:", error);

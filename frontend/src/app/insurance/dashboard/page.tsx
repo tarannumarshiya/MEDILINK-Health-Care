@@ -116,7 +116,10 @@ export default function InsuranceDashboardPage() {
 
   async function rejectClaim(id: string) {
     const { reason } = decisionFor(id);
-    if (!reason.trim()) { setMessage("Enter a rejection reason."); return; }
+    if (!reason.trim()) { 
+      alert("Please enter a rejection reason before rejecting the claim."); 
+      return; 
+    }
     setBusyId(id);
     const res = await apiFetch("/api/insurance/reject", {
       method: "PATCH",

@@ -134,7 +134,8 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
 router.get("/revenue", requireAuth, requireRole(BILLING_ROLES), async (req: Request, res: Response) => {
   try {
     const { data: invoices } = await serviceClient
-      .from("invoices").select("total,status,consultation_charge,lab_charge,medicine_charge,insurance_deduction,created_at,patient_name");
+      .from("invoices").select("id,invoice_code,total,status,consultation_charge,lab_charge,medicine_charge,insurance_deduction,created_at,patient_name")
+      .order("created_at", { ascending: false });
 
     // Only count payments that were actually confirmed (SUCCESS or COMPLETED)
     const { data: payments } = await serviceClient

@@ -329,7 +329,7 @@ export default function CartDrawer() {
 
                     <textarea
                       rows={3}
-                      placeholder="Notes"
+                      placeholder={delivery === "delivery" ? "Drop Location / Full Address (Required)" : "Notes (Optional)"}
                       className="mt-3 w-full rounded-xl border p-3"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
@@ -361,6 +361,10 @@ export default function CartDrawer() {
                       alert("Please upload a prescription for the required medicines.");
                       return;
                     }
+                    if (delivery === "delivery" && !notes.trim()) {
+                      alert("Please provide a drop location for online delivery.");
+                      return;
+                    }
 
                     setIsPlacing(true);
                     try {
@@ -371,7 +375,7 @@ export default function CartDrawer() {
                           patient_name: patientName,
                           patient_phone: phone,
                           delivery_type: delivery,
-                          notes,
+                          notes: delivery === "delivery" ? `Drop Location: ${notes}` : notes,
                           prescription_image: prescriptionImage,
                           items: cart.map(item => ({
                              medicine_id: item.id,

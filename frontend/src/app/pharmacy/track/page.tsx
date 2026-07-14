@@ -28,15 +28,14 @@ type PharmacyOrder = {
 
 const statusSteps = [
   "PENDING",
-  "PROCESSING",
-  "READY_FOR_PICKUP",
-  "OUT_FOR_DELIVERY",
+  "APPROVED",
+  "DISPATCHED",
   "DELIVERED",
   "CANCELLED",
 ];
 
 function getStatusIndex(status: string) {
-  return statusSteps.indexOf(status);
+  return statusSteps.indexOf(status.toUpperCase());
 }
 
 export default function PharmacyTrackPage() {

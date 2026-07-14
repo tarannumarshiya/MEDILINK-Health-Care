@@ -466,19 +466,31 @@ export default function PharmacyQueuePage() {
                       )}
                     </div>
                   )}
-                  {order.status === "PENDING" && (
+                  {order.status.toUpperCase() === "PENDING" && (
                     <div className="mt-4 flex gap-2">
-                      <button onClick={() => updateOrderStatus(order.id, "PROCESSING")} disabled={actionId === order.id}
+                      <button onClick={() => updateOrderStatus(order.id, "APPROVED")} disabled={actionId === order.id}
                         className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-black text-white transition hover:bg-blue-500 disabled:opacity-60">
-                        {actionId === order.id ? "…" : "Mark Processing"}
-                      </button>
-                      <button onClick={() => updateOrderStatus(order.id, "DELIVERED")} disabled={actionId === order.id}
-                        className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-black text-white transition hover:bg-emerald-500 disabled:opacity-60">
-                        Mark Delivered
+                        {actionId === order.id ? "…" : "Approve Order"}
                       </button>
                     </div>
                   )}
-                  {order.status === "PROCESSING" && (
+                  {order.status.toUpperCase() === "APPROVED" && (
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={() => updateOrderStatus(order.id, "DISPATCHED")} disabled={actionId === order.id}
+                        className="rounded-xl bg-amber-600 px-5 py-2 text-sm font-black text-white transition hover:bg-amber-500 disabled:opacity-60">
+                        {actionId === order.id ? "…" : "Dispatch"}
+                      </button>
+                    </div>
+                  )}
+                  {order.status.toUpperCase() === "DISPATCHED" && (
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={() => updateOrderStatus(order.id, "DELIVERED")} disabled={actionId === order.id}
+                        className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-black text-white transition hover:bg-emerald-500 disabled:opacity-60">
+                        {actionId === order.id ? "…" : "Mark Delivered"}
+                      </button>
+                    </div>
+                  )}
+                  {order.status.toUpperCase() === "PROCESSING" && (
                     <button onClick={() => updateOrderStatus(order.id, "DELIVERED")} disabled={actionId === order.id}
                       className="mt-4 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-black text-white transition hover:bg-emerald-500 disabled:opacity-60">
                       {actionId === order.id ? "…" : "Mark Delivered"}
