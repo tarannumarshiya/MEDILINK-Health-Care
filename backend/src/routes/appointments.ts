@@ -8,30 +8,48 @@ import { generateInvoiceForAppointment } from "../lib/billing";
 
 const router = Router();
 
+/* -------------------------------------------------------------------------- */
+/*                               Helper Methods                               */
+/* -------------------------------------------------------------------------- */
+
 function maskName(name: string) {
   if (!name) return name;
-  return name.split(" ").map(n => {
-    if (n.length <= 2) return n[0] + "*";
-    return n[0] + "*".repeat(n.length - 2) + n[n.length - 1];
-  }).join(" ");
+
+  return name
+    .split(" ")
+    .map((part) => {
+      if (part.length <= 2) return part[0] + "*";
+      return part[0] + "*".repeat(part.length - 2) + part.slice(-1);
+    })
+    .join(" ");
 }
 
 function maskPhone(phone: string) {
   if (!phone) return phone;
   if (phone.length < 6) return "***";
-  return phone.slice(0, 3) + "*".repeat(phone.length - 5) + phone.slice(-2);
+  return (
+    phone.substring(0, 3) +
+    "*".repeat(phone.length - 5) +
+    phone.substring(phone.length - 2)
+  );
 }
 
 function maskCode(code: string) {
   if (!code) return code;
+
   const parts = code.split("-");
+
   if (parts.length === 3) {
     return `${parts[0]}-${parts[1]}-***${parts[2].slice(-2)}`;
   }
+
   return "***";
 }
 
-// POST /api/appointments/create
+/* -------------------------------------------------------------------------- */
+/*                         POST /api/appointments/create                      */
+/* -------------------------------------------------------------------------- */
+
 router.post("/create", async (req: Request, res: Response) => {
   try {
     const {
@@ -46,103 +64,138 @@ router.post("/create", async (req: Request, res: Response) => {
       symptoms,
     } = req.body;
 
-    if (!full_name || !age || !phone || !department || !preferred_date)
+    if (
+      !full_name ||
+      !age ||
+      !phone ||
+      !department ||
+      !preferred_date
+    ) {
       return void res.status(400).json({
-        error: "Name, age, phone, department and date are required",
+        error: "Name, age, phone, department and preferred date are required",
       });
+    }
 
     const appointmentCode = generateAppointmentCode();
 
-    // Resolve department_id from department name
-    const { data: deptRow } = await supabase
+    // Resolve Department ID
+    const { data: deptRow } = await serviceClient
       .from("departments")
       .select("id")
       .ilike("name", department)
       .maybeSingle();
+
     const department_id = deptRow?.id ?? null;
 
-    // Dedup: find existing patient by phone (or email as fallback)
+    // Check existing patient
     let orFilter = `phone.eq.${phone}`;
-    if (email) orFilter += `,email.eq.${email}`;
 
-    const { data: existing } = await serviceClient
+    if (email) {
+      orFilter += `,email.eq.${email}`;
+    }
+
+    const { data: existingPatient } = await serviceClient
       .from("patients")
       .select("id, patient_code, full_name, profile_id")
       .or(orFilter)
       .maybeSingle();
 
-    let patient = existing;
+    let patient = existingPatient;
 
     if (!patient) {
-      const { data: created, error: patientError } = await serviceClient
-        .from("patients")
+      const { data: createdPatient, error: patientError } =
+        await serviceClient
+          .from("patients")
+          .insert({
+            patient_code: generatePatientCode(),
+            full_name,
+            age: Number(age),
+            phone,
+            email: email ?? null,
+          })
+          .select()
+          .single();
+
+      if (patientError || !createdPatient) {
+        return void res.status(500).json({
+          error: patientError?.message ?? "Unable to register patient",
+        });
+      }
+
+      patient = createdPatient;
+    }
+
+    if (!patient) {
+      return void res
+        .status(500)
+        .json({ error: "Unable to resolve patient" });
+    }
+
+    const { data: appointment, error: appointmentError } =
+      await serviceClient
+        .from("appointments")
         .insert({
-          patient_code: generatePatientCode(),
-          full_name,
-          age: Number(age),
-          phone,
-          email: email ?? null,
+          appointment_code: appointmentCode,
+          patient_id: patient.id,
+          patient_name: full_name,
+          patient_phone: phone,
+          patient_email: email ?? null,
+          department,
+          department_id,
+          preferred_date,
+          preferred_time: preferred_time ?? null,
+          symptoms: symptoms ?? description ?? null,
+          status: "PENDING",
         })
         .select()
         .single();
 
-      if (patientError || !created)
-        return void res.status(500).json({
-          error: patientError?.message ?? "Patient registration failed",
-        });
-
-      patient = created;
+    if (appointmentError || !appointment) {
+      return void res.status(500).json({
+        error:
+          appointmentError?.message ??
+          "Unable to create appointment",
+      });
     }
 
-    if (!patient)
-      return void res.status(500).json({ error: "Patient resolution failed" });
+    res.json({
+      success: true,
+      patient,
+      appointment,
+    });
+  } catch (error) {
+    console.error(error);
 
-    const { data: appointment, error: appointmentError } = await serviceClient
-      .from("appointments")
-      .insert({
-        appointment_code: appointmentCode,
-        patient_id: patient.id,
-        patient_name: full_name,
-        patient_phone: phone,
-        patient_email: email ?? null,
-        department,
-        department_id,
-        preferred_date,
-        preferred_time: preferred_time ?? null,
-        symptoms: symptoms ?? description ?? null,
-        status: "PENDING",
-      })
-      .select()
-      .single();
-
-    if (appointmentError || !appointment)
-      return void res.status(500).json({
-        error: appointmentError?.message ?? "Appointment creation failed",
-      });
-
-    res.json({ success: true, patient, appointment });
-  } catch {
-    res
-      .status(500)
-      .json({ error: "Server error while booking appointment" });
+    res.status(500).json({
+      error: "Server error while booking appointment",
+    });
   }
 });
 
-// POST /api/appointments/track
+/* -------------------------------------------------------------------------- */
+/*                          POST /api/appointments/track                      */
+/* -------------------------------------------------------------------------- */
+
 router.post("/track", async (req: Request, res: Response) => {
   try {
     const searchValue = String(req.body.search ?? "").trim();
-    const isCodeSearch = searchValue.startsWith("PAT-") || searchValue.startsWith("APT-");
 
-    if (!searchValue)
+    if (!searchValue) {
       return void res.status(400).json({
         error:
-          "Patient ID, Appointment ID, or phone number is required",
+          "Patient ID, Appointment ID or phone number is required",
       });
+    }
+
+    const isCodeSearch =
+      searchValue.startsWith("PAT-") ||
+      searchValue.startsWith("APT-");
 
     const { data: patient } = await serviceClient
       .from("patients")
-      .select("id, patient_code, full_name, age, phone, email, description")
+      .select(
+        "id, patient_code, full_name, age, phone, email, description"
+      )
       .or(
         `patient_code.eq.${searchValue},phone.eq.${searchValue},email.eq.${searchValue}`
       )
@@ -150,13 +203,27 @@ router.post("/track", async (req: Request, res: Response) => {
 
     let query = serviceClient
       .from("appointments")
-      .select(
-        `id, appointment_code, patient_id, patient_name, patient_phone,
-         patient_email, department, preferred_date, preferred_time,
-         symptoms, status, prescription_text, lab_report_url,
-         lab_required, created_at, updated_at`
-      )
-      .order("created_at", { ascending: false });
+      .select(`
+        id,
+        appointment_code,
+        patient_id,
+        patient_name,
+        patient_phone,
+        patient_email,
+        department,
+        preferred_date,
+        preferred_time,
+        symptoms,
+        status,
+        prescription_text,
+        lab_report_url,
+        lab_required,
+        created_at,
+        updated_at
+      `)
+      .order("created_at", {
+        ascending: false,
+      });
 
     if (patient) {
       query = query.eq("patient_id", patient.id);
@@ -168,15 +235,20 @@ router.post("/track", async (req: Request, res: Response) => {
 
     const { data: appointments, error } = await query;
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      return void res.status(500).json({
+        error: error.message,
+      });
+    }
 
-    if (!appointments || appointments.length === 0)
-      return void res
-        .status(404)
-        .json({ error: "No appointment found for this detail" });
+    if (!appointments || appointments.length === 0) {
+      return void res.status(404).json({
+        error: "No appointment found",
+      });
+    }
 
     if (!isCodeSearch) {
-      const maskedAppointments = appointments.map(app => ({
+      const maskedAppointments = appointments.map((app: any) => ({
         ...app,
         patient_name: maskName(app.patient_name),
         patient_phone: maskPhone(app.patient_phone),
@@ -191,76 +263,135 @@ router.post("/track", async (req: Request, res: Response) => {
         success: true,
         isLimited: true,
         patient: null,
-        appointments: maskedAppointments
+        appointments: maskedAppointments,
       });
     }
 
-    res.json({ success: true, patient, appointments });
-  } catch {
-    res
-      .status(500)
-      .json({ error: "Server error while tracking appointment" });
+    res.json({
+      success: true,
+      patient,
+      appointments,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: "Server error while tracking appointment",
+    });
   }
 });
+/* -------------------------------------------------------------------------- */
+/*                    POST /api/appointments/:id/consent                      */
+/* -------------------------------------------------------------------------- */
 
-// POST /api/appointments/:id/consent
 router.post("/:id/consent", async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    // Fixes TS2345 (string | string[])
+    const id = String(req.params.id);
     const { accept } = req.body;
 
-    const { data: appt, error: apptError } = await serviceClient
+    const { data: appointment, error: appointmentError } = await serviceClient
       .from("appointments")
       .select("id, status, lab_required")
       .eq("id", id)
       .single();
 
-    if (apptError || !appt) {
-      return void res.status(404).json({ error: "Appointment not found" });
+    if (appointmentError || !appointment) {
+      return void res.status(404).json({
+        error: "Appointment not found",
+      });
     }
 
-    if (appt.status !== "PENDING_PATIENT_APPROVAL") {
-      return void res.status(400).json({ error: "Appointment is not pending approval" });
+    if (appointment.status !== "PENDING_PATIENT_APPROVAL") {
+      return void res.status(400).json({
+        error: "Appointment is not pending approval",
+      });
     }
 
     if (accept) {
-      const nextStatus = appt.lab_required ? "LAB_REQUESTED" : "PRESCRIPTION_READY";
-      await serviceClient.from("appointments").update({
-        status: nextStatus,
-        updated_at: new Date().toISOString(),
-      }).eq("id", id);
-      
-      // Invoice will be generated at the end of lab/pharmacy flow
+      // Patient accepted medicines/lab
+
+      const nextStatus = appointment.lab_required
+        ? "LAB_REQUESTED"
+        : "PRESCRIPTION_READY";
+
+      const { error: updateError } = await serviceClient
+        .from("appointments")
+        .update({
+          status: nextStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (updateError) {
+        return void res.status(500).json({
+          error: updateError.message,
+        });
+      }
+
+      // Invoice will be generated after lab/pharmacy completion
     } else {
-      // Reject: cancel lab/pharmacy flow
-      await serviceClient.from("appointments").update({
-        status: "COMPLETED", // skip downstream
-        updated_at: new Date().toISOString(),
-      }).eq("id", id);
+      // Patient rejected medicines/lab
 
-      // Cancel any pending lab tests
-      await serviceClient.from("lab_tests").update({
-        status: "CANCELLED"
-      }).eq("appointment_id", id).eq("status", "PENDING");
-      
-      // Cancel any active prescriptions
-      await serviceClient.from("prescriptions").update({
-        status: "CANCELLED" // Or maybe just leave them as ACTIVE but they won't be fulfilled? We don't have a CANCELLED status for prescriptions in the frontend schema note, but we can use EXPIRED or just delete them. Actually let's just let it be, they won't go to pharmacy because status is COMPLETED.
-      }).eq("appointment_id", id);
+      await serviceClient
+        .from("appointments")
+        .update({
+          status: "COMPLETED",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
 
-      // Generate invoice immediately for consultation only (since lab/medicines aren't happening)
-      // Actually, our generateInvoiceForAppointment looks at lab_tests and prescriptions.
-      // If we cancelled the lab_tests, the charge might be 0. Let's delete the lab_tests and prescriptions so the invoice doesn't charge them.
-      await serviceClient.from("lab_tests").delete().eq("appointment_id", id);
-      await serviceClient.from("prescriptions").delete().eq("appointment_id", id);
+      // Cancel lab tests
+      await serviceClient
+        .from("lab_tests")
+        .update({
+          status: "CANCELLED",
+        })
+        .eq("appointment_id", id)
+        .eq("status", "PENDING");
 
-      await generateInvoiceForAppointment(id);
+      // Cancel prescriptions
+      await serviceClient
+        .from("prescriptions")
+        .update({
+          status: "CANCELLED",
+        })
+        .eq("appointment_id", id);
+
+      // Delete pending lab tests
+      await serviceClient
+        .from("lab_tests")
+        .delete()
+        .eq("appointment_id", id);
+
+      // Delete prescriptions
+      await serviceClient
+        .from("prescriptions")
+        .delete()
+        .eq("appointment_id", id);
+
+      // Generate consultation-only invoice
+      try {
+        await generateInvoiceForAppointment(id);
+      } catch (err) {
+        console.error("Invoice generation failed:", err);
+      }
     }
 
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: "Server error while submitting consent" });
+    res.json({
+      success: true,
+    });
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Server error while submitting consent",
+    });
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/*                                EXPORT ROUTER                               */
+/* -------------------------------------------------------------------------- */
 
 export default router;
