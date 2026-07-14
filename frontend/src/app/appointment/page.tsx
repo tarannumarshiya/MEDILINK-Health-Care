@@ -112,7 +112,10 @@ export default function AppointmentPage() {
           .map((d: { name: string }) => d.name);
         if (active.length > 0) setDepartments(active);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Failed to fetch departments:", err);
+        setError("Failed to connect to the backend server. Please ensure the backend is running.");
+      });
   }, []);
 
   // Unified client-side validation

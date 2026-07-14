@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { createRequestClient } from "../lib/supabase";
+import { createRequestClient, serviceClient } from "../lib/supabase";
 import {
   generateAppointmentCode,
   generatePatientCode,
@@ -33,7 +33,6 @@ function maskCode(code: string) {
 // POST /api/appointments/create
 router.post("/create", async (req: Request, res: Response) => {
   try {
-    const supabase = createRequestClient(req);
     const {
       full_name,
       age,
@@ -65,7 +64,7 @@ router.post("/create", async (req: Request, res: Response) => {
     let orFilter = `phone.eq.${phone}`;
     if (email) orFilter += `,email.eq.${email}`;
 
-    const { data: existing } = await supabase
+    const { data: existing } = await serviceClient
       .from("patients")
       .select("id, patient_code, full_name, profile_id")
       .or(orFilter)
@@ -74,7 +73,7 @@ router.post("/create", async (req: Request, res: Response) => {
     let patient = existing;
 
     if (!patient) {
-      const { data: created, error: patientError } = await supabase
+      const { data: created, error: patientError } = await serviceClient
         .from("patients")
         .insert({
           patient_code: generatePatientCode(),
@@ -97,7 +96,7 @@ router.post("/create", async (req: Request, res: Response) => {
     if (!patient)
       return void res.status(500).json({ error: "Patient resolution failed" });
 
-    const { data: appointment, error: appointmentError } = await supabase
+    const { data: appointment, error: appointmentError } = await serviceClient
       .from("appointments")
       .insert({
         appointment_code: appointmentCode,
@@ -131,7 +130,6 @@ router.post("/create", async (req: Request, res: Response) => {
 // POST /api/appointments/track
 router.post("/track", async (req: Request, res: Response) => {
   try {
-    const supabase = createRequestClient(req);
     const searchValue = String(req.body.search ?? "").trim();
     const isCodeSearch = searchValue.startsWith("PAT-") || searchValue.startsWith("APT-");
 
@@ -141,7 +139,7 @@ router.post("/track", async (req: Request, res: Response) => {
           "Patient ID, Appointment ID, or phone number is required",
       });
 
-    const { data: patient } = await supabase
+    const { data: patient } = await serviceClient
       .from("patients")
       .select("id, patient_code, full_name, age, phone, email, description")
       .or(
@@ -149,7 +147,7 @@ router.post("/track", async (req: Request, res: Response) => {
       )
       .maybeSingle();
 
-    let query = supabase
+    let query = serviceClient
       .from("appointments")
       .select(
         `id, appointment_code, patient_id, patient_name, patient_phone,

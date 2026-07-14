@@ -636,12 +636,11 @@ export default function DoctorQueuePage() {
   const todayStr = new Date().toLocaleDateString("en-CA"); // "YYYY-MM-DD"
 
   const queue = appointments.filter(a =>
-    ["PENDING", "APPROVED"].includes(a.status) &&
-    a.preferred_date <= todayStr  // only today or overdue, not future
+    ["PENDING", "APPROVED"].includes(a.status)
   );
   const inProgress = appointments.filter(a => a.status === "IN_PROGRESS");
   const completed = appointments.filter(a =>
-    ["COMPLETED", "PRESCRIBED", "LAB_COMPLETED"].includes(a.status) &&
+    ["COMPLETED", "PRESCRIBED", "LAB_COMPLETED", "PRESCRIPTION_READY", "LAB_REQUESTED", "LAB_PROCESSING", "PHARMACY_PENDING", "PHARMACY_FULFILLED", "INVOICE_GENERATED"].includes(a.status) &&
     a.preferred_date === todayStr  // only today's completed
   );
   const tabData: Record<Tab, Appointment[]> = { queue, inprogress: inProgress, completed };
