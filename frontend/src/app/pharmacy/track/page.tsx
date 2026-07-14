@@ -23,7 +23,7 @@ type PharmacyOrder = {
   total: number;
   notes: string | null;
   created_at: string;
-  pharmacy_order_items: OrderItem[];
+  items?: OrderItem[];
 };
 
 const statusSteps = [
