@@ -200,42 +200,6 @@ router.post("/appointments/approve", requireAuth, requireRole(APPT_MANAGE_ROLES)
 
     if (error) return void res.status(500).json({ error: error.message });
 
-    // --- AUTO-GENERATE INVOICE ---
-    let fee = 500; // Default fallback fee
-    const resolvedDoctorId = doctor_id || data?.doctor_id;
-    if (resolvedDoctorId) {
-      const { data: doc } = await serviceClient
-        .from("doctors")
-        .select("consultation_fee")
-        .eq("id", resolvedDoctorId)
-        .single();
-      if (doc?.consultation_fee) fee = doc.consultation_fee;
-    }
-
-    if (data?.patient_id) {
-      // Check if an invoice already exists for this appointment
-      const { data: existingInv } = await serviceClient
-        .from("invoices")
-        .select("id")
-        .eq("appointment_id", appointmentId)
-        .maybeSingle();
-
-      if (!existingInv) {
-        await serviceClient.from("invoices").insert({
-          invoice_code: generateInvoiceCode(),
-          patient_id: data.patient_id,
-          appointment_id: appointmentId,
-          patient_name: data.patient_name,
-          consultation_charge: fee,
-          lab_charge: 0,
-          medicine_charge: 0,
-          insurance_deduction: 0,
-          total: fee,
-          status: "UNPAID",
-        });
-      }
-    }
-    // -----------------------------
 
     // Audit
     await serviceClient.from("audit_logs").insert({

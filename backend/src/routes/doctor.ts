@@ -12,9 +12,11 @@ const APPT_SELECT = `id, appointment_code, patient_id, patient_name, patient_pho
   patient_email, department, doctor_id, preferred_date, preferred_time,
   symptoms, status, prescription_text, lab_required, lab_report_url, created_at, updated_at`;
 
+const DOCTOR_ROLES = ["DOCTOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN", "DEPARTMENT_ADMIN"];
+
 // ── GET /api/doctor/queue ─────────────────────────────────────────────────────
 router.get("/queue", requireAuth,
-  requireRole(["DOCTOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN", "DEPARTMENT_ADMIN"]),
+  requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const supabase = createRequestClient(req);
@@ -85,7 +87,7 @@ router.get("/queue", requireAuth,
 
 // ── PATCH /api/doctor/start-consultation ─────────────────────────────────────
 router.patch("/start-consultation", requireAuth,
-  requireRole(["DOCTOR", "ADMIN", "SUPER_ADMIN"]),
+  requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const { appointmentId } = req.body;
@@ -124,7 +126,7 @@ router.patch("/start-consultation", requireAuth,
 );
 
 // ── POST /api/doctor/prescription ─────────────────────────────────────────────
-router.post("/prescription", requireAuth, requireRole(["DOCTOR"]),
+router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const supabase = createRequestClient(req);
@@ -275,7 +277,7 @@ router.post("/prescription", requireAuth, requireRole(["DOCTOR"]),
 );
 
 // ── GET /api/doctor/lab-report ────────────────────────────────────────────────
-router.get("/lab-report", requireAuth, requireRole(["DOCTOR", "ADMIN"]),
+router.get("/lab-report", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const { appointment_id } = req.query;
@@ -299,7 +301,7 @@ router.get("/lab-report", requireAuth, requireRole(["DOCTOR", "ADMIN"]),
 );
 
 // ── PATCH /api/doctor/complete ────────────────────────────────────────────────
-router.patch("/complete", requireAuth, requireRole(["DOCTOR", "ADMIN"]),
+router.patch("/complete", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const { appointmentId } = req.body;
@@ -329,7 +331,7 @@ router.patch("/complete", requireAuth, requireRole(["DOCTOR", "ADMIN"]),
 );
 
 // ── GET /api/doctor/patient-history ─────────────────────────────────────────
-router.get("/patient-history", requireAuth, requireRole(["DOCTOR", "ADMIN", "SUPER_ADMIN"]),
+router.get("/patient-history", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const patientId = String(req.query.patient_id ?? "");

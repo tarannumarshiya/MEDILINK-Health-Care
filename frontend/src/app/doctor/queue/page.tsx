@@ -485,6 +485,7 @@ export default function DoctorQueuePage() {
   }, []);
 
   useEffect(() => {
+    let interval: number;
     const timer = window.setTimeout(() => {
       const supabase = createClient();
       void supabase.auth.getUser().then(({ data }) => {
@@ -493,10 +494,18 @@ export default function DoctorQueuePage() {
           return;
         }
         void loadQueue();
+        
+        // Auto-refresh the queue every 10 seconds to catch updates from admin or reception
+        interval = window.setInterval(() => {
+          void loadQueue();
+        }, 10000);
       });
     }, 0);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      if (interval) window.clearInterval(interval);
+    };
   }, [loadQueue]);
 
   async function approveAppointment(id: string) {
