@@ -187,7 +187,7 @@ export default function PharmacyTrackPage() {
                       Items
                     </p>
                     <p className="mt-1 font-black text-slate-900">
-                      {order.pharmacy_order_items.length} medicines
+                      {order.items?.length || 0} medicines
                     </p>
                   </div>
 
@@ -231,8 +231,8 @@ export default function PharmacyTrackPage() {
                     Medicines
                   </p>
                   <ul className="space-y-2">
-                    {order.pharmacy_order_items.map((item) => (
-                      <li key={item.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    {(order.items || []).map((item: any, idx: number) => (
+                      <li key={item.id || idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                         <span className="font-bold text-slate-800">{item.medicine_name}</span>
                         <div className="text-right">
                           <span className="text-sm font-semibold text-slate-500">Qty: {item.quantity}</span>

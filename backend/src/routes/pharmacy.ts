@@ -204,75 +204,28 @@ router.post("/orders", async (req: Request, res: Response) => {
     );
 
     const { data: order, error: orderError } = await serviceClient
-      .from("pharmacy_orders")
+      .from("pharmacy_public_orders")
       .insert({
         patient_name,
         patient_phone,
         delivery_type: delivery_type ?? "pickup",
         notes: notes ?? null,
-        prescription_url: prescription_image ?? null,
+        prescription_image: prescription_image ?? null,
         status: "PENDING",
         total,
+        items: items.map(
+          (item: { name?: string; medicine_name?: string; price: number; quantity: number }) => ({
+            medicine_name: item.medicine_name ?? item.name ?? "Medicine",
+            price: Number(item.price),
+            quantity: Number(item.quantity),
+          })
+        ),
       })
       .select("*")
       .single();
 
     if (orderError) {
       return void res.status(500).json({ error: orderError.message });
-    }
-
-    const orderItems = items.map(
-      (item: {
-        id?: string;
-        medicine_id?: string;
-        name?: string;
-        medicine_name?: string;
-        price: number;
-        quantity: number;
-      }) => ({
-        order_id: order.id,
-        medicine_id: item.medicine_id ?? item.id ?? null,
-        medicine_name: item.medicine_name ?? item.name ?? "Medicine",
-        price: Number(item.price),
-        quantity: Number(item.quantity),
-      })
-    );
-
-    // schema cache, retry without it or with `unit_price` so the order still goes through.
-    let itemsError: any = null;
-
-    const { error: ie1 } = await serviceClient
-      .from("pharmacy_order_items")
-      .insert(orderItems);
-    itemsError = ie1;
-
-    let fallbackItems: any[] = orderItems;
-
-    if (itemsError && itemsError.message.toLowerCase().includes("medicine_name")) {
-      // Column doesn't exist — remove it
-      fallbackItems = fallbackItems.map(({ medicine_name: _mn, ...rest }) => rest);
-      const { error: ie2 } = await serviceClient
-        .from("pharmacy_order_items")
-        .insert(fallbackItems);
-      itemsError = ie2;
-    }
-
-    if (itemsError && itemsError.message.toLowerCase().includes("price")) {
-      // Column might be unit_price instead of price
-      fallbackItems = fallbackItems.map(({ price, ...rest }) => ({ ...rest, unit_price: price }));
-      const { error: ie3 } = await serviceClient
-        .from("pharmacy_order_items")
-        .insert(fallbackItems);
-      itemsError = ie3;
-    }
-
-    if (itemsError) {
-      if (itemsError.message.includes("pharmacy_order_items_medicine_id_fkey")) {
-        // Delete the orphaned order that was created
-        await serviceClient.from("pharmacy_orders").delete().eq("id", order.id);
-        return void res.status(400).json({ error: "One or more medicines in your cart are no longer available in the database. Please remove them from your cart and try again." });
-      }
-      return void res.status(500).json({ error: itemsError.message });
     }
 
     return res.status(201).json({
@@ -298,11 +251,8 @@ router.post("/orders/track", async (req: Request, res: Response) => {
 
     const cleanSearch = search.trim();
     let query = serviceClient
-      .from("pharmacy_orders")
-      .select(`
-        id, patient_name, patient_phone, delivery_type, status, total, notes, created_at,
-        pharmacy_order_items ( id, medicine_name, price, quantity )
-      `)
+      .from("pharmacy_public_orders")
+      .select("*")
       .order("created_at", { ascending: false });
 
     // Try treating it as UUID first, otherwise search by phone
@@ -337,21 +287,12 @@ router.get(
   async (req: Request, res: Response) => {
     const supabase = createRequestClient(req);
     const { data, error } = await supabase
-      .from("pharmacy_orders")
-      .select(`
-        id, patient_name, patient_phone, delivery_type, status, total, notes, prescription_url, created_at,
-        pharmacy_order_items ( id, medicine_name, price, quantity )
-      `)
+      .from("pharmacy_public_orders")
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (error) return void res.status(500).json({ error: error.message });
-    // Map prescription_url to prescription_image for frontend compatibility
-    const mapped = (data || []).map(order => ({
-      ...order,
-      prescription_image: order.prescription_url,
-      items: order.pharmacy_order_items
-    }));
-    res.json({ success: true, orders: mapped });
+    res.json({ success: true, orders: data || [] });
   }
 );
 
@@ -368,7 +309,7 @@ router.patch(
     }
 
     const { error } = await supabase
-      .from("pharmacy_orders")
+      .from("pharmacy_public_orders")
       .update({ status })
       .eq("id", id);
 
