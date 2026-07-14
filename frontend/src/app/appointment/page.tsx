@@ -107,9 +107,15 @@ export default function AppointmentPage() {
     apiFetch("/api/admin/departments")
       .then(r => r.json())
       .then(data => {
-        const active = (data.departments ?? [])
+        const uniqueMap = new Map();
+        (data.departments ?? [])
           .filter((d: { is_active: boolean }) => d.is_active)
-          .map((d: { name: string }) => d.name);
+          .forEach((d: { name: string }) => {
+            const clean = d.name.trim();
+            const key = clean.toLowerCase();
+            if (!uniqueMap.has(key)) uniqueMap.set(key, clean);
+          });
+        const active = Array.from(uniqueMap.values());
         if (active.length > 0) setDepartments(active);
       })
       .catch((err) => {
