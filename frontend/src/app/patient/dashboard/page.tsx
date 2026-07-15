@@ -8,7 +8,6 @@ import { apiFetch } from "@/lib/apiFetch";
 import { DashboardShell, type TabItem } from "@/components/dashboard/DashboardShell";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import PayButton from "@/components/payment/PayButton";
-import RazorpayQR from "@/components/payment/RazorpayQR";
 import HospitalBill from "@/components/payment/HospitalBill";
 import PaymentSuccessModal from "@/components/payment/PaymentSuccessModal";
 import DatePicker from "@/components/public/DatePicker";
@@ -754,12 +753,6 @@ export default function PatientDashboardPage() {
                           prefill={{ name: patient?.full_name, email: patient?.email }}
                           onSuccess={() => payInvoice(inv.id, "Razorpay")}
                         />
-                        <RazorpayQR
-                          amount={inv.total}
-                          invoiceCode={inv.invoice_code}
-                          prefill={{ name: patient?.full_name, email: patient?.email }}
-                          onSuccess={() => payInvoice(inv.id, "UPI QR")}
-                        />
                       </>
                     )}
                   </div>
@@ -1074,12 +1067,6 @@ export default function PatientDashboardPage() {
                     prefill={{ name: patient?.full_name, email: patient?.email }}
                     className="flex-1 justify-center"
                     onSuccess={() => payInvoice(billPopup.id, "Razorpay")}
-                  />
-                  <RazorpayQR
-                    amount={billPopup.total}
-                    invoiceCode={billPopup.invoice_code}
-                    prefill={{ name: patient?.full_name, email: patient?.email }}
-                    onSuccess={() => payInvoice(billPopup.id, "UPI QR")}
                   />
                 </div>
                 <div className="flex gap-3">

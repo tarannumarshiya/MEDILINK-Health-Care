@@ -20,7 +20,6 @@ import { Info } from "@/components/dashboard/Info";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { SuccessBanner } from "@/components/dashboard/SuccessBanner";
 import PayButton from "@/components/payment/PayButton";
-import RazorpayQR from "@/components/payment/RazorpayQR";
 import HospitalBill from "@/components/payment/HospitalBill";
 import PaymentSuccessModal from "@/components/payment/PaymentSuccessModal";
 
@@ -653,12 +652,6 @@ export default function BillingDashboardPage() {
                           label="Pay via Razorpay"
                           onSuccess={() => handleRazorpaySuccess(inv.id)}
                           onFailure={(r) => setMessage(r?.error ?? "Payment failed")}
-                        />
-
-                        <RazorpayQR
-                          amount={inv.total}
-                          invoiceCode={inv.invoice_code}
-                          onSuccess={() => handleRazorpaySuccess(inv.id, "UPI QR")}
                         />
 
                         <button
