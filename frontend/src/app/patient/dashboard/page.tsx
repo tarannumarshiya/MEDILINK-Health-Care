@@ -16,7 +16,7 @@ import TimeSelect from "@/components/public/TimeSelect";
 import {
   BarChart3, User, FileText, Calendar, Pill,
   Beaker, Shield, CreditCard, Video, Bell, Loader2,
-  TrendingUp, Heart, Clock, CheckCircle, Activity,
+  TrendingUp, Heart, Clock, CheckCircle, Activity, X
 } from "lucide-react";
 
 type PatientRow = { full_name: string; email: string; phone: string; age: number; patient_code: string; id: string };
@@ -1027,6 +1027,12 @@ export default function PatientDashboardPage() {
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
               <div className="relative bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 px-6 py-5 text-center">
+                <button
+                  onClick={() => setBillPopup(null)}
+                  className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-1.5 text-white transition hover:bg-white/20"
+                >
+                  <X className="h-4 w-4" />
+                </button>
                 <div className="pointer-events-none absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle,#fff 1px,transparent 1px)", backgroundSize: "20px 20px" }} />
                 <div className="relative">
                   <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-2xl">🏥</div>

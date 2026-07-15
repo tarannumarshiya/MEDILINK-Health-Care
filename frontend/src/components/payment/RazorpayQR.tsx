@@ -17,7 +17,7 @@ interface Props {
 
 type QrState = "idle" | "loading" | "ready" | "polling" | "paid" | "error";
 
-const POLL_INTERVAL_MS = 4000;  // check every 4 seconds
+const POLL_INTERVAL_MS = 1500;  // check every 1.5 seconds
 const QR_EXPIRY_SECS   = 900;   // 15 minutes
 
 export default function RazorpayQR({

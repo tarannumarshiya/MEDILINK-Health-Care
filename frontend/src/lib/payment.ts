@@ -126,7 +126,7 @@ async function runLivePayment(opts: PayOptions): Promise<void> {
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 export function initiatePayment(opts: PayOptions): void {
-  const mode = process.env.NEXT_PUBLIC_PAYMENTS_MODE ?? process.env.PAYMENTS_MODE ?? "mock";
+  const mode: string = "mock"; // Hardcoded to always mock success per user request
   if (mode === "live") {
     runLivePayment(opts);
   } else {
