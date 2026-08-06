@@ -88,11 +88,34 @@ router.get("/doctors", async (req: Request, res: Response) => {
     .order("created_at", { ascending: false });
 
   if (error) return void res.status(500).json({ error: error.message });
-  // Filter out doctors whose profile has been deactivated
-  const activeDoctors = (data ?? []).filter((d: any) => {
-    const prof = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
-    return prof?.is_active !== false;
+
+  const doctorsWithFlatten = (data ?? []).map((doctor: any) => {
+    const profiles = Array.isArray(doctor.profiles) ? doctor.profiles[0] : doctor.profiles;
+    const departments = Array.isArray(doctor.departments) ? doctor.departments[0] : doctor.departments;
+
+    return {
+      id: doctor.id,
+      profile_id: doctor.profile_id,
+      department_id: doctor.department_id,
+      qualification: doctor.qualification,
+      experience_years: doctor.experience_years,
+      consultation_fee: doctor.consultation_fee,
+      is_available: doctor.is_available,
+      created_at: doctor.created_at,
+      /* Flattened display fields */
+      full_name: profiles?.full_name ?? null,
+      email: profiles?.email ?? null,
+      role: profiles?.role ?? null,
+      is_active: profiles?.is_active !== false,
+      department_name: departments?.name ?? null,
+      /* Preserve nested for compatibility */
+      profiles,
+      departments,
+    };
   });
+
+  // Filter out doctors whose profile has been deactivated
+  const activeDoctors = doctorsWithFlatten.filter((d: any) => d.is_active);
   res.json({ success: true, doctors: activeDoctors });
 });
 

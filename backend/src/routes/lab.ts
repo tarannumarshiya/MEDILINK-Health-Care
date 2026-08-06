@@ -2,9 +2,9 @@ import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceForAppointment } from "../lib/billing";
+import { LAB_ROLES } from "../lib/roles";
 
 const router = Router();
-const LAB_ROLES = ["TESTER", "LAB_TECHNICIAN", "LAB_ADMIN", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"];
 
 // GET /api/lab/queue
 router.get("/queue", requireAuth, requireRole(LAB_ROLES), async (_req: Request, res: Response) => {

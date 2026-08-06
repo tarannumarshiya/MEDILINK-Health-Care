@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { ADMIN_ROLES } from "../lib/roles";
 
 const router = Router();
-const AUDIT_ROLES = ["ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"];
+const AUDIT_ROLES = ADMIN_ROLES.filter(role => ["ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"].includes(role));
 
 // GET /api/audit-logs
 router.get("/", requireAuth, requireRole(AUDIT_ROLES), async (req: Request, res: Response) => {

@@ -14,6 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { usePharmacyCart } from "@/context/PharmacyCartContext";
+import { apiFetch } from "@/lib/apiFetch";
 
 export default function CartDrawer() {
   const {
@@ -62,9 +63,8 @@ export default function CartDrawer() {
     try {
       await Promise.all(
         cart.map((item) =>
-          fetch("http://localhost:4000/api/reminders", {
+          apiFetch("/api/reminders", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               patient_phone: phone.trim(),
               medicine_id: item.id,

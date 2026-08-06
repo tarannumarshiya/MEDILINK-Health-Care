@@ -4,6 +4,7 @@ import { useState } from "react";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
 import { Bell, Calendar, Pill, Trash2, Loader2, Search } from "lucide-react";
+import { apiFetch } from "@/lib/apiFetch";
 
 type Reminder = {
   id: string;
@@ -31,10 +32,8 @@ export default function MedicineRemindersPage() {
     setSearched(true);
 
     try {
-      const res = await fetch(
-        `http://localhost:4000/api/reminders?patient_phone=${encodeURIComponent(
-          phone.trim()
-        )}`
+      const res = await apiFetch(
+        `/api/reminders?patient_phone=${encodeURIComponent(phone.trim())}`
       );
 
       const data: { success: boolean; reminders?: Reminder[]; error?: string } =
@@ -47,7 +46,7 @@ export default function MedicineRemindersPage() {
 
       setReminders(data.reminders || []);
     } catch {
-      alert("Backend not reachable. Please check backend server on port 4000.");
+      alert("Backend not reachable. Please check backend server.");
     } finally {
       setLoading(false);
     }
@@ -57,10 +56,7 @@ export default function MedicineRemindersPage() {
     if (!confirm("Delete reminder?")) return;
 
     try {
-      await fetch(`http://localhost:4000/api/reminders/${id}`, {
-        method: "DELETE",
-      });
-
+      await apiFetch(`/api/reminders/${id}`, { method: "DELETE" });
       await loadReminders();
     } catch {
       alert("Failed to delete reminder.");

@@ -1,18 +1,9 @@
 import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { TELEMEDICINE_ADMIN_ROLES, STAFF_ROLES } from "../lib/roles";
 
 const router = Router();
-
-const TELE_ROLES = [
-  "DOCTOR",
-  "TELEMEDICINE",
-  "TELEMEDICINE_ADMIN",
-  "ADMIN",
-  "SUPER_ADMIN",
-  "HOSPITAL_ADMIN",
-  "PATIENT",
-];
 
 type TelemedicineStatus = "PENDING" | "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED" | "MISSED";
 
@@ -102,18 +93,43 @@ function getFallbackPatientName(index: number) {
 }
 
 // GET /api/telemedicine/sessions
+// Staff see all sessions. Patients see only their own.
 router.get(
   "/sessions",
   requireAuth,
-  requireRole(TELE_ROLES),
-  async (_req: Request, res: Response) => {
+  requireRole([...TELEMEDICINE_ADMIN_ROLES, "PATIENT"]),
+  async (req: Request, res: Response) => {
     try {
-      const { data, error } = await serviceClient
+      const profile = (req as any).profile;
+      const user = (req as any).user;
+      const isPatient = profile?.role === "PATIENT";
+
+      let query = serviceClient
         .from("telemedicine_sessions")
         .select(
           "id,appointment_id,doctor_id,patient_id,scheduled_at,status,recording_url,created_at"
         )
         .order("scheduled_at", { ascending: false });
+
+      // Patients can only see their own sessions (resolve patient_id from profile)
+      if (isPatient) {
+        const { data: patientRecord } = await serviceClient
+          .from("patients")
+          .select("id")
+          .eq("profile_id", user.id)
+          .maybeSingle();
+        
+        if (!patientRecord) {
+          return void res.status(404).json({
+            success: false,
+            error: "No patient record found for this account",
+          });
+        }
+        
+        query = query.eq("patient_id", patientRecord.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         return void res.status(500).json({
@@ -280,7 +296,8 @@ router.get(
 );
 
 // POST /api/telemedicine/create
-router.post("/create", requireAuth, async (req: Request, res: Response) => {
+// Only staff can create telemedicine sessions
+router.post("/create", requireAuth, requireRole(TELEMEDICINE_ADMIN_ROLES), async (req: Request, res: Response) => {
   try {
     const {
       appointment_id,
@@ -333,9 +350,13 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
 router.patch(
   "/update-status",
   requireAuth,
-  requireRole(TELE_ROLES),
+  requireRole([...TELEMEDICINE_ADMIN_ROLES, "PATIENT"]),
   async (req: Request, res: Response) => {
     try {
+      const profile = (req as any).profile;
+      const user = (req as any).user;
+      const isPatient = profile?.role === "PATIENT";
+
       const { session_id, status, recording_url } =
         req.body as UpdateStatusBody;
 
@@ -344,6 +365,35 @@ router.patch(
           success: false,
           error: "session_id and status required",
         });
+      }
+
+      // Verify ownership for patients
+      if (isPatient) {
+        const { data: session } = await serviceClient
+          .from("telemedicine_sessions")
+          .select("patient_id")
+          .eq("id", session_id)
+          .maybeSingle();
+        
+        if (!session) {
+          return void res.status(404).json({
+            success: false,
+            error: "Session not found",
+          });
+        }
+        
+        const { data: patientRecord } = await serviceClient
+          .from("patients")
+          .select("id")
+          .eq("profile_id", user.id)
+          .maybeSingle();
+        
+        if (!patientRecord || session.patient_id !== patientRecord.id) {
+          return void res.status(403).json({
+            success: false,
+            error: "You can only update your own sessions",
+          });
+        }
       }
 
       const normalizedStatus = normalizeStatus(status);
@@ -355,6 +405,14 @@ router.patch(
         });
       }
 
+      // Patients can only cancel sessions
+      if (isPatient && normalizedStatus !== "CANCELLED") {
+        return void res.status(403).json({
+          success: false,
+          error: "Patients can only cancel sessions",
+        });
+      }
+
       const updates: {
         status: TelemedicineStatus;
         recording_url?: string;
@@ -362,7 +420,8 @@ router.patch(
         status: normalizedStatus,
       };
 
-      if (recording_url) {
+      // Only staff can update recording_url
+      if (recording_url && !isPatient) {
         updates.recording_url = recording_url;
       }
 

@@ -1,121 +1,130 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import { serviceClient } from "../lib/supabase";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
+import { config } from "../lib/config";
 
 const router = Router();
 
-const SETTINGS_FILE = path.join(__dirname, "../lib/settings.json");
+/* -------------------------------------------------------------------------- */
+/*                     Idempotency / amount verification                       */
+/* -------------------------------------------------------------------------- */
 
-function getSettings() {
-  try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
-      return {
-        RAZORPAY_KEY_ID: data.RAZORPAY_KEY_ID ?? process.env.RAZORPAY_KEY_ID,
-        RAZORPAY_KEY_SECRET: data.RAZORPAY_KEY_SECRET ?? process.env.RAZORPAY_KEY_SECRET,
-      };
-    }
-  } catch (err) {
-    console.error("Error reading settings.json", err);
+async function resolveReferenceAmount(purpose: string, referenceId?: string, invoiceCode?: string) {
+  if (purpose === "pharmacy_order" && referenceId) {
+    const { data, error } = await serviceClient
+      .from("pharmacy_public_orders")
+      .select("total, status")
+      .eq("id", referenceId)
+      .single();
+    if (error || !data) return { error: "Order not found", status: 404 };
+    return { amount: Number(data.total) || 0, invoiceId: null, status: 200 };
   }
-  return {
-    RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
-    RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
-  };
+
+  if (invoiceCode) {
+    const { data, error } = await serviceClient
+      .from("invoices")
+      .select("id, total, status")
+      .eq("invoice_code", invoiceCode)
+      .single();
+    if (error || !data) return { error: "Invoice not found", status: 404 };
+    return { amount: Number(data.total) || 0, invoiceId: data.id, status: 200 };
+  }
+
+  return { error: "invoiceCode or referenceId is required", status: 400 };
 }
 
-function saveSettings(settings: Record<string, string>) {
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
+function amountsMatch(a: number, b: number): boolean {
+  return Math.abs(a - b) < 0.01;
 }
 
-// GET /api/payment/public-settings
-router.get("/public-settings", (req: Request, res: Response) => {
-  const { RAZORPAY_KEY_ID } = getSettings();
-  res.json({ success: true, RAZORPAY_KEY_ID });
+/** Prevents duplicate payment recording for the same gateway payment id. */
+async function paymentAlreadyRecorded(razorpayPaymentId: string | null | undefined): Promise<boolean> {
+  if (!razorpayPaymentId) return false;
+  const { data } = await serviceClient
+    .from("payments")
+    .select("id")
+    .eq("razorpay_payment_id", razorpayPaymentId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              Settings endpoints                             */
+/* -------------------------------------------------------------------------- */
+
+// Public — returns only the non-secret Razorpay key id.
+router.get("/public-settings", (_req: Request, res: Response) => {
+  res.json({ success: true, RAZORPAY_KEY_ID: config.razorpayKeyId, paymentMode: config.paymentMode });
 });
 
-// GET /api/payment/settings (Super Admin only)
+// Super Admin only — never returns the secret itself.
 router.get(
   "/settings",
   requireAuth,
-  requireRole(["SUPER_ADMIN"]),
-  (req: Request, res: Response) => {
-    res.json({ success: true, settings: getSettings() });
+  (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      settings: {
+        razorpayConfigured: Boolean(config.razorpayKeyId && config.razorpayKeySecret),
+        paymentMode: config.paymentMode,
+        // Secret is intentionally never exposed through the API.
+      },
+    });
   }
 );
 
-// POST /api/payment/settings (Super Admin only)
+// Secrets can no longer be written through the API. Env-only.
 router.post(
   "/settings",
   requireAuth,
-  requireRole(["SUPER_ADMIN"]),
-  (req: Request, res: Response) => {
-    const { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } = req.body;
-    saveSettings({ RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET });
-    res.json({ success: true, message: "Settings saved successfully" });
+  (_req: Request, res: Response) => {
+    res.status(400).json({
+      success: false,
+      error: "Razorpay secrets must be configured via server environment variables. Inline secret updates are disabled for security.",
+    });
   }
 );
 
-// POST /api/payment/create-order
-router.post("/create-order", async (req: Request, res: Response) => {
+/* -------------------------------------------------------------------------- */
+/*                            POST /api/payment/create-order                   */
+/* -------------------------------------------------------------------------- */
+
+router.post("/create-order", requireAuth, async (req: Request, res: Response) => {
   const {
     invoiceCode,
     purpose = "invoice",
     referenceId,
-  }: { invoiceCode: string; purpose?: string; referenceId?: string } =
-    req.body;
+  }: { invoiceCode: string; purpose?: string; referenceId?: string } = req.body;
 
-  const mode = process.env.PAYMENTS_MODE ?? "mock";
-
-  let amount: number;
-
-  if (purpose === "pharmacy_order" && referenceId) {
-    const { data, error } = await serviceClient
-      .from("pharmacy_public_orders")
-      .select("total")
-      .eq("id", referenceId)
-      .single();
-    if (error || !data)
-      return void res.status(404).json({ error: "Order not found" });
-    amount = data.total;
-  } else {
-    const { data, error } = await serviceClient
-      .from("invoices")
-      .select("total")
-      .eq("invoice_code", invoiceCode)
-      .single();
-    if (error || !data)
-      return void res.status(404).json({ error: "Invoice not found" });
-    amount = data.total;
-  }
+  const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
+  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  const amount = resolved.amount as number;
 
   // ── MOCK ──
-  if (mode !== "live") {
+  if (config.paymentMode === "mock") {
     return void res.json({
       orderId: `mock_order_${Date.now()}`,
       amount,
+      demo: true,
     });
   }
 
-  // ── LIVE: call Razorpay Orders API ──
-  const { RAZORPAY_KEY_ID: keyId, RAZORPAY_KEY_SECRET: keySecret } = getSettings();
-  if (!keyId || !keySecret) return void res.status(500).json({ error: "Razorpay keys not configured" });
+  // ── RAZORPAY ──
+  if (!config.razorpayKeyId || !config.razorpayKeySecret) {
+    return void res.status(500).json({ error: "Razorpay keys not configured" });
+  }
 
   const rzpRes = await fetch("https://api.razorpay.com/v1/orders", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString(
-        "base64"
-      )}`,
+      Authorization: `Basic ${Buffer.from(`${config.razorpayKeyId}:${config.razorpayKeySecret}`).toString("base64")}`,
     },
     body: JSON.stringify({
-      amount: amount * 100,
-      currency: "INR",
-      receipt: invoiceCode,
+      amount: Math.round(amount * 100),
+      currency: "BDT",
+      receipt: invoiceCode || referenceId || undefined,
     }),
   });
 
@@ -128,41 +137,37 @@ router.post("/create-order", async (req: Request, res: Response) => {
   res.json({ orderId: rzpData.id, amount });
 });
 
-// POST /api/payment/create-qr — generates a Razorpay QR code for UPI scan-to-pay
-router.post("/create-qr", async (req: Request, res: Response) => {
+/* -------------------------------------------------------------------------- */
+/*                            POST /api/payment/create-qr                      */
+/* -------------------------------------------------------------------------- */
+
+router.post("/create-qr", requireAuth, async (req: Request, res: Response) => {
   const { invoiceCode, purpose = "invoice", referenceId } = req.body;
-  const { RAZORPAY_KEY_ID: keyId, RAZORPAY_KEY_SECRET: keySecret } = getSettings();
 
-  if (!keyId || !keySecret)
-    return void res.status(500).json({ error: "Razorpay keys not configured" });
+  const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
+  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  const amount = resolved.amount as number;
 
-  // Resolve the amount from invoice or pharmacy order
-  let amount = 0;
-  if (purpose === "pharmacy_order" && referenceId) {
-    const { data } = await serviceClient
-      .from("pharmacy_public_orders").select("total").eq("id", referenceId).single();
-    if (data) amount = data.total;
-  } else if (invoiceCode) {
-    const { data } = await serviceClient
-      .from("invoices").select("total").eq("invoice_code", invoiceCode).single();
-    if (data) amount = data.total;
+  if (amount <= 0) {
+    return void res.status(400).json({ error: "Invalid amount for QR generation" });
   }
 
-  if (!amount || amount <= 0)
-    return void res.status(400).json({ error: "Invalid amount for QR generation" });
+  if (config.paymentMode === "mock") {
+    return void res.json({
+      success: true,
+      qrId: "mock_qr_" + Date.now(),
+      imageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=mock@upi&pn=Mock%20Payment&am=${amount}`,
+      amount,
+      demo: true,
+    });
+  }
+
+  if (!config.razorpayKeyId || !config.razorpayKeySecret) {
+    return void res.status(500).json({ error: "Razorpay keys not configured" });
+  }
 
   try {
-    const mode = process.env.PAYMENTS_MODE ?? "mock";
-    if (mode === "mock") {
-      return void res.json({
-        success: true,
-        qrId: "mock_qr_" + Date.now(),
-        imageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=mock@upi&pn=Mock%20Payment&am=${amount}`,
-        amount
-      });
-    }
-
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const auth = Buffer.from(`${config.razorpayKeyId}:${config.razorpayKeySecret}`).toString("base64");
     const rzpRes = await fetch("https://api.razorpay.com/v1/payments/qr_codes", {
       method: "POST",
       headers: {
@@ -174,9 +179,9 @@ router.post("/create-qr", async (req: Request, res: Response) => {
         name: "Medilink Healthcare",
         usage: "single_use",
         fixed_amount: true,
-        payment_amount: amount * 100, // paise
+        payment_amount: Math.round(amount * 100),
         description: invoiceCode ? `Invoice ${invoiceCode}` : "Healthcare Payment",
-        close_by: Math.floor(Date.now() / 1000) + 900, // expires in 15 min
+        close_by: Math.floor(Date.now() / 1000) + 900,
       }),
     });
 
@@ -185,48 +190,57 @@ router.post("/create-qr", async (req: Request, res: Response) => {
       return void res.status(502).json({ error: err });
     }
 
-    const qr = await rzpRes.json() as { id: string; image_url: string; amount: number };
+    const qr = (await rzpRes.json()) as { id: string; image_url: string; amount: number };
     res.json({ success: true, qrId: qr.id, imageUrl: qr.image_url, amount });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// POST /api/payment/verify-qr — polls Razorpay QR payment status
-router.post("/verify-qr", async (req: Request, res: Response) => {
+/* -------------------------------------------------------------------------- */
+/*                            POST /api/payment/verify-qr                      */
+/* -------------------------------------------------------------------------- */
+
+router.post("/verify-qr", requireAuth, async (req: Request, res: Response) => {
   const { qrId, invoiceCode, purpose = "invoice", referenceId, amount } = req.body;
   if (!qrId) return void res.status(400).json({ error: "qrId required" });
 
-  const { RAZORPAY_KEY_ID: keyId, RAZORPAY_KEY_SECRET: keySecret } = getSettings();
-  if (!keyId || !keySecret)
-    return void res.status(500).json({ error: "Razorpay keys not configured" });
+  const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
+  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  const expectedAmount = resolved.amount as number;
+  const invoiceId = (resolved as any).invoiceId as string | null;
+
+  if (amount != null && !amountsMatch(Number(amount), expectedAmount)) {
+    return void res.status(422).json({ error: "Payment amount does not match invoice" });
+  }
 
   try {
-    const mode = process.env.PAYMENTS_MODE ?? "mock";
-    if (mode === "mock") {
-      let invoice_id = null;
-      if (invoiceCode) {
-        const { data: inv } = await serviceClient
-          .from("invoices").select("id").eq("invoice_code", invoiceCode).maybeSingle();
-        if (inv) invoice_id = inv.id;
+    if (config.paymentMode === "mock") {
+      const paymentId = "mock_payment_" + Date.now();
+      if (await paymentAlreadyRecorded(paymentId)) {
+        return void res.json({ verified: true, paymentId, alreadyRecorded: true });
       }
       await serviceClient.from("payments").insert({
-        invoice_id,
+        invoice_id: invoiceId,
         invoice_code: invoiceCode ?? null,
-        amount: amount ?? 0,
+        amount: expectedAmount,
         method: "mock_qr",
         status: "COMPLETED",
-        razorpay_payment_id: "mock_payment_" + Date.now(),
+        razorpay_payment_id: paymentId,
       });
       if (purpose === "pharmacy_order" && referenceId) {
         await serviceClient.from("pharmacy_public_orders").update({ status: "CONFIRMED" }).eq("id", referenceId);
       } else if (invoiceCode) {
         await serviceClient.from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
       }
-      return void res.json({ verified: true, paymentId: "mock_payment_" + Date.now() });
+      return void res.json({ verified: true, paymentId });
     }
 
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    if (!config.razorpayKeyId || !config.razorpayKeySecret) {
+      return void res.status(500).json({ error: "Razorpay keys not configured" });
+    }
+
+    const auth = Buffer.from(`${config.razorpayKeyId}:${config.razorpayKeySecret}`).toString("base64");
     const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments`, {
       headers: { Authorization: `Basic ${auth}` },
     });
@@ -236,21 +250,17 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
       return void res.status(502).json({ error: err });
     }
 
-    const data = await rzpRes.json() as { items?: { id: string; status: string }[] };
+    const data = (await rzpRes.json()) as { items?: { id: string; status: string }[] };
     const paid = (data.items ?? []).find((p) => p.status === "captured");
 
     if (paid) {
-      // Record the payment in DB
-      let invoice_id = null;
-      if (invoiceCode) {
-        const { data: inv } = await serviceClient
-          .from("invoices").select("id").eq("invoice_code", invoiceCode).maybeSingle();
-        if (inv) invoice_id = inv.id;
+      if (await paymentAlreadyRecorded(paid.id)) {
+        return void res.json({ verified: true, paymentId: paid.id, alreadyRecorded: true });
       }
       await serviceClient.from("payments").insert({
-        invoice_id,
+        invoice_id: invoiceId,
         invoice_code: invoiceCode ?? null,
-        amount: amount ?? 0,
+        amount: expectedAmount,
         method: "upi_qr",
         status: "COMPLETED",
         razorpay_payment_id: paid.id ?? null,
@@ -269,9 +279,11 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
   }
 });
 
+/* -------------------------------------------------------------------------- */
+/*                            POST /api/payment/verify                         */
+/* -------------------------------------------------------------------------- */
 
-router.post("/verify", async (req: Request, res: Response) => {
-  const mode = process.env.PAYMENTS_MODE ?? "mock";
+router.post("/verify", requireAuth, async (req: Request, res: Response) => {
   const {
     razorpay_order_id,
     razorpay_payment_id,
@@ -282,38 +294,54 @@ router.post("/verify", async (req: Request, res: Response) => {
     amount,
   } = req.body;
 
-  // ── LIVE: verify Razorpay HMAC ──
-  if (mode === "live") {
-    const { RAZORPAY_KEY_SECRET: keySecret } = getSettings();
-    if (!keySecret) return void res.status(500).json({ error: "Razorpay secret not configured" });
+  // A client can never supply the final status; it is derived server-side only.
+  const requestedStatus = req.body.status;
+  if (requestedStatus && String(requestedStatus).toUpperCase() !== "COMPLETED") {
+    return void res.status(400).json({ error: "Invalid status supplied" });
+  }
+
+  const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
+  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  const expectedAmount = resolved.amount as number;
+  const invoiceId = (resolved as any).invoiceId as string | null;
+
+  if (amount != null && !amountsMatch(Number(amount), expectedAmount)) {
+    return void res.status(422).json({ error: "Payment amount does not match invoice" });
+  }
+
+  // Idempotency: if this gateway payment was already recorded, return the result.
+  if (await paymentAlreadyRecorded(razorpay_payment_id)) {
+    return void res.json({ verified: true, alreadyRecorded: true });
+  }
+
+  // ── RAZORPAY: verify HMAC signature before writing anything ──
+  if (config.paymentMode === "razorpay") {
+    if (!config.razorpayKeySecret) {
+      return void res.status(500).json({ error: "Razorpay secret not configured" });
+    }
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return void res.status(400).json({ error: "Missing Razorpay verification fields" });
+    }
     const expected = crypto
-      .createHmac("sha256", keySecret)
+      .createHmac("sha256", config.razorpayKeySecret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest("hex");
 
-    if (expected !== razorpay_signature)
+    if (expected !== razorpay_signature) {
       return void res.status(400).json({ error: "Invalid signature" });
+    }
   }
 
-  let invoice_id = null;
-  if (invoiceCode) {
-    const { data: inv } = await serviceClient
-      .from("invoices")
-      .select("id")
-      .eq("invoice_code", invoiceCode)
-      .maybeSingle();
-    if (inv) invoice_id = inv.id;
-  }
-
-  // ── Write to DB (both mock and live) ──
+  // ── MOCK: only reachable when demo mode is enabled (enforced at startup) ──
+  const paymentId = razorpay_payment_id ?? "mock_payment_" + Date.now();
   await serviceClient.from("payments").insert({
-    invoice_id,
+    invoice_id: invoiceId,
     invoice_code: invoiceCode ?? null,
-    amount: amount ?? 0,
-    method: mode === "live" ? "razorpay" : "mock_upi",
+    amount: expectedAmount,
+    method: config.paymentMode === "razorpay" ? "razorpay" : "mock_upi",
     status: "COMPLETED",
     razorpay_order_id: razorpay_order_id ?? null,
-    razorpay_payment_id: razorpay_payment_id ?? null,
+    razorpay_payment_id: paymentId,
   });
 
   if (purpose === "pharmacy_order" && referenceId) {

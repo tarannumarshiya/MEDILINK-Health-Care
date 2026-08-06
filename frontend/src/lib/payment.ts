@@ -1,8 +1,9 @@
 /**
  * payment.ts — single payment engine for the whole app.
  *
- * PAYMENTS_MODE=mock  → simulated instant success (demo / no real Razorpay call)
- * PAYMENTS_MODE=live  → real Razorpay checkout (plug in real keys, no code change)
+ * Reads payment mode from backend /api/payment/public-settings.
+ * mock   → simulated instant success (demo / no real Razorpay call)
+ * razorpay → real Razorpay checkout (test mode or live)
  */
 
 import { apiFetch } from "@/lib/apiFetch";
@@ -12,7 +13,7 @@ export type PaymentResult =
   | { success: false; error: string };
 
 export interface PayOptions {
-  /** Amount in INR (NOT paise — we convert internally) */
+  /** Amount in BDT (NOT paise — we convert internally) */
   amount: number;
   description: string;
   /** Invoice / order reference shown in Razorpay modal */
@@ -65,7 +66,6 @@ async function runMockPayment(opts: PayOptions): Promise<void> {
   }
 
   // Always force success in mock mode
-
   opts.onSuccess({ success: true, paymentId: mockPayId, orderId: mockOrderId, method: "mock_upi" });
 }
 
@@ -82,10 +82,11 @@ async function runLivePayment(opts: PayOptions): Promise<void> {
     }),
   });
   if (!orderRes.ok) {
-    opts.onFailure?.({ success: false, error: "Failed to create payment order." });
+    const err = await orderRes.json().catch(() => ({ error: "Failed to create payment order" }));
+    opts.onFailure?.({ success: false, error: err.error || "Failed to create payment order." });
     return;
   }
-  const { orderId } = await orderRes.json();
+  const { orderId, amount } = await orderRes.json();
 
   // 2. Fetch Razorpay key ID dynamically
   const keyRes = await apiFetch("/api/payment/public-settings");
@@ -103,14 +104,14 @@ async function runLivePayment(opts: PayOptions): Promise<void> {
   // @ts-expect-error Razorpay is loaded via external script tag
   const rzp = new window.Razorpay({
     key:         rzpKey,
-    amount:      opts.amount * 100, // paise
-    currency:    "INR",
+    amount:      amount * 100, // paise
+    currency:    "BDT",
     name:        "Medilink Healthcare",
     description: opts.description,
     order_id:    orderId,
     prefill:     opts.prefill ?? {},
     handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-      // 3. Verify signature on server
+      // 4. Verify signature on server
       const verifyRes = await apiFetch("/api/payment/verify", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,7 +120,7 @@ async function runLivePayment(opts: PayOptions): Promise<void> {
           invoiceCode: opts.invoiceCode,
           purpose:     opts.purpose ?? "invoice",
           referenceId: opts.referenceId,
-          amount:      opts.amount,
+          amount:      amount,
         }),
       });
       if (!verifyRes.ok) {
@@ -141,11 +142,19 @@ async function runLivePayment(opts: PayOptions): Promise<void> {
 }
 
 // ─── Public entry point ───────────────────────────────────────────────────────
-export function initiatePayment(opts: PayOptions): void {
-  const mode: string = "mock"; // Hardcoded to always mock success per user request
-  if (mode === "live") {
-    runLivePayment(opts);
-  } else {
-    runMockPayment(opts); // returns a Promise — fire-and-forget is fine
+export async function initiatePayment(opts: PayOptions): Promise<void> {
+  try {
+    // Read actual payment mode from backend
+    const res = await apiFetch("/api/payment/public-settings");
+    if (res.ok) {
+      const { paymentMode } = await res.json();
+      if (paymentMode === "razorpay") {
+        await runLivePayment(opts);
+        return;
+      }
+    }
+  } catch {
+    // Fall through to mock if backend unreachable
   }
+  await runMockPayment(opts);
 }

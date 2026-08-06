@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import { createRequestClient, serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceCode } from "../lib/ids";
+import { DOCTOR_ROLES } from "../lib/roles";
+
 const router = Router();
 
 const LAB_CHARGE_PER_REQUEST = 200;
@@ -10,8 +12,6 @@ const MEDICINE_CHARGE_PER_QTY = 50;
 const APPT_SELECT = `id, appointment_code, patient_id, patient_name, patient_phone,
   patient_email, department, department_id, doctor_id, preferred_date, preferred_time,
   symptoms, status, prescription_text, lab_required, lab_report_url, created_at, updated_at`;
-
-const DOCTOR_ROLES = ["DOCTOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN", "DEPARTMENT_ADMIN"];
 
 // ── GET /api/doctor/queue ─────────────────────────────────────────────────────
 router.get("/queue", requireAuth,
