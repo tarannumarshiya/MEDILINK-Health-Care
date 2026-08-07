@@ -1,5 +1,5 @@
 -- MEDILINK Healthcare Seed Data for UAT
--- Version: 002_idempotent_with_demo_auth
+-- Version: 003_security_hardening
 -- Date: 2026-08-07
 -- Description: Dummy data for controlled client UAT testing.
 --              Every INSERT uses ON CONFLICT (id) DO NOTHING so the seed
@@ -10,7 +10,8 @@
 -- Prerequisites:
 --   1. Migration 001_initial_schema.sql has been applied.
 --   2. Migration 002_align_backend_schema.sql has been applied.
---   3. pgcrypto extension is available (for password hashing).
+--   3. Migration 003_security_hardening.sql has been applied.
+--   4. pgcrypto extension is available (for password hashing).
 
 -- ============================================================================
 -- 0. CRYPTOGRAPHIC EXTENSION (for demo auth passwords)
@@ -58,22 +59,22 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 3. PROFILES
 -- ============================================================================
-INSERT INTO profiles (id, full_name, email, role, is_active) VALUES
-  -- Patients
-  ('b1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',   'patient@demo.com',   'PATIENT', true),
-  ('b1b2c3d4-e5f6-7890-abcd-ef1234567802', 'John Smith',     'john@demo.com',      'PATIENT', true),
-  ('b1b2c3d4-e5f6-7890-abcd-ef1234567803', 'Sarah Wilson',   'sarah@demo.com',     'PATIENT', true),
-  -- Staff
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Admin User',         'admin@demo.com',       'ADMIN',         true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567802', 'Dr. Rajesh Kumar',   'doctor@demo.com',      'DOCTOR',        true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567803', 'Nurse Priya',        'nurse@demo.com',       'NURSE',         true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567804', 'Receptionist Amit',  'reception@demo.com',   'RECEPTIONIST',  true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567805', 'Pharmacist Meera',   'pharmacist@demo.com',  'PHARMACIST',    true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567806', 'Lab Tech Sanjay',    'lab@demo.com',         'LAB_TECHNICIAN',true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567807', 'Billing Staff',      'billing@demo.com',     'BILLING',       true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567808', 'Insurance Staff',    'insurance@demo.com',   'INSURANCE_STAFF', true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567809', 'Emergency Staff',    'emergency@demo.com',   'EMERGENCY_STAFF', true),
-  ('c1b2c3d4-e5f6-7890-abcd-ef1234567810', 'Super Admin',        'superadmin@demo.com',  'SUPER_ADMIN',   true)
+INSERT INTO profiles (id, full_name, email, role, is_active, employee_id) VALUES
+  -- Patients (no employee_id)
+  ('b1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',   'patient@demo.com',   'PATIENT', true, NULL),
+  ('b1b2c3d4-e5f6-7890-abcd-ef1234567802', 'John Smith',     'john@demo.com',      'PATIENT', true, NULL),
+  ('b1b2c3d4-e5f6-7890-abcd-ef1234567803', 'Sarah Wilson',   'sarah@demo.com',     'PATIENT', true, NULL),
+  -- Staff (employee_id = staff code; last 4 digits used as PIN for consent)
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Admin User',         'admin@demo.com',       'ADMIN',         true, 'EMP-0001'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567802', 'Dr. Rajesh Kumar',   'doctor@demo.com',      'DOCTOR',        true, 'EMP-0002'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567803', 'Nurse Priya',        'nurse@demo.com',       'NURSE',         true, 'EMP-0003'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567804', 'Receptionist Amit',  'reception@demo.com',   'RECEPTIONIST',  true, 'EMP-0004'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567805', 'Pharmacist Meera',   'pharmacist@demo.com',  'PHARMACIST',    true, 'EMP-0005'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567806', 'Lab Tech Sanjay',    'lab@demo.com',         'LAB_TECHNICIAN',true, 'EMP-0006'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567807', 'Billing Staff',      'billing@demo.com',     'BILLING',       true, 'EMP-0007'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567808', 'Insurance Staff',    'insurance@demo.com',   'INSURANCE_STAFF', true, 'EMP-0008'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567809', 'Emergency Staff',    'emergency@demo.com',   'EMERGENCY_STAFF', true, 'EMP-0009'),
+  ('c1b2c3d4-e5f6-7890-abcd-ef1234567810', 'Super Admin',        'superadmin@demo.com',  'SUPER_ADMIN',   true, 'EMP-0010')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -140,11 +141,12 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 10. APPOINTMENTS (cover a range of statuses for testing)
 -- ============================================================================
-INSERT INTO appointments (id, appointment_code, patient_id, doctor_id, patient_name, patient_phone, department, department_id, preferred_date, preferred_time, symptoms, status, lab_required) VALUES
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567801', 'APT-2026-001', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-10', '10:00', 'Fever and headache for 3 days', 'PENDING_PATIENT_APPROVAL', true),
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567802', 'APT-2026-002', 'd1b2c3d4-e5f6-7890-abcd-ef1234567802', 'e1b2c3d4-e5f6-7890-abcd-ef1234567802', 'John Smith',    '+8801712345679', 'Cardiology',      'a1b2c3d4-e5f6-7890-abcd-ef1234567802', '2026-08-11', '14:00', 'Chest pain and shortness of breath', 'LAB_REQUESTED', true),
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567803', 'APT-2026-003', 'd1b2c3d4-e5f6-7890-abcd-ef1234567803', NULL, 'Sarah Wilson', '+8801712345680', 'Dermatology',     'a1b2c3d4-e5f6-7890-abcd-ef1234567805', '2026-08-12', '11:00', 'Skin rash on arms', 'PENDING', false),
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567804', 'APT-2026-004', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-14', '09:00', 'Follow-up checkup', 'COMPLETED', false)
+INSERT INTO appointments (id, appointment_code, verification_code, patient_id, doctor_id, patient_name, patient_phone, department, department_id, preferred_date, preferred_time, symptoms, status, lab_required) VALUES
+  -- verification_code = last 4 digits of patient_phone (identity knowledge factor)
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567801', 'APT-2026-001', '5678', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-10', '10:00', 'Fever and headache for 3 days', 'PENDING_PATIENT_APPROVAL', true),
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567802', 'APT-2026-002', '5679', 'd1b2c3d4-e5f6-7890-abcd-ef1234567802', 'e1b2c3d4-e5f6-7890-abcd-ef1234567802', 'John Smith',    '+8801712345679', 'Cardiology',      'a1b2c3d4-e5f6-7890-abcd-ef1234567802', '2026-08-11', '14:00', 'Chest pain and shortness of breath', 'LAB_REQUESTED', true),
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567803', 'APT-2026-003', '5680', 'd1b2c3d4-e5f6-7890-abcd-ef1234567803', NULL, 'Sarah Wilson', '+8801712345680', 'Dermatology',     'a1b2c3d4-e5f6-7890-abcd-ef1234567805', '2026-08-12', '11:00', 'Skin rash on arms', 'PENDING', false),
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567804', 'APT-2026-004', '5678', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-14', '09:00', 'Follow-up checkup', 'COMPLETED', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

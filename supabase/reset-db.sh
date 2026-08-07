@@ -45,6 +45,7 @@ DRY_RUN="${DRY_RUN:-0}"
 # ---------------------------------------------------------------------------
 
 APP_TABLES=(
+  "consent_audit_log"
   "audit_logs"
   "notifications"
   "payments"
@@ -103,19 +104,23 @@ echo "  MEDILINK Database Reset (UAT)"
 echo "===================================================="
 echo ""
 
-echo "[1/4] Truncating application tables..."
+echo "[1/5] Truncating application tables..."
 run_sql "Truncate all application data (preserving auth.users)" "$TRUNCATE_SQL"
 
 echo ""
-echo "[2/4] Applying migration 001_initial_schema.sql ..."
+echo "[2/5] Applying migration 001_initial_schema.sql ..."
 run_sql "001_initial_schema" "$(cat "$SCRIPT_DIR/migrations/001_initial_schema.sql")"
 
 echo ""
-echo "[3/4] Applying migration 002_align_backend_schema.sql ..."
+echo "[3/5] Applying migration 002_align_backend_schema.sql ..."
 run_sql "002_align_backend_schema" "$(cat "$SCRIPT_DIR/migrations/002_align_backend_schema.sql")"
 
 echo ""
-echo "[4/4] Loading seed data (uat_seed_data.sql) ..."
+echo "[4/5] Applying migration 003_security_hardening.sql ..."
+run_sql "003_security_hardening" "$(cat "$SCRIPT_DIR/migrations/003_security_hardening.sql")"
+
+echo ""
+echo "[5/5] Loading seed data (uat_seed_data.sql) ..."
 run_sql "Seed data" "$(cat "$SCRIPT_DIR/seed/uat_seed_data.sql")"
 
 # ---------------------------------------------------------------------------

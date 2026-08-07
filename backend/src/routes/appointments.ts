@@ -41,6 +41,9 @@ router.post("/create", async (req: Request, res: Response) => {
     }
 
     const appointmentCode = generateAppointmentCode();
+    // Verification code: last 4 digits of phone number for identity confirmation.
+    // This is the minimum knowledge factor required to track an appointment.
+    const verificationCode = phone.slice(-4);
 
     // Resolve Department ID
     const { data: deptRow } = await getServiceClient()
@@ -100,6 +103,7 @@ router.post("/create", async (req: Request, res: Response) => {
         .from("appointments")
         .insert({
           appointment_code: appointmentCode,
+          verification_code: verificationCode,
           patient_id: patient.id,
           patient_name: full_name,
           patient_phone: phone,
@@ -166,20 +170,26 @@ router.post("/create", async (req: Request, res: Response) => {
 router.post("/track", async (req: Request, res: Response) => {
   try {
     const searchValue = String(req.body.search ?? "").trim();
+    const verificationCode = String(req.body.verification_code ?? "").trim();
 
     if (!searchValue) {
       return void res.status(400).json({
-        error:
-          "Appointment reference, patient ID or phone number is required",
+        error: "Appointment reference is required",
       });
     }
 
+    if (!verificationCode) {
+      return void res.status(400).json({
+        error: "Verification code is required for identity confirmation",
+      });
+    }
+
+    // Only allow lookup by appointment_code — never by phone or email
+    // which would enable enumeration of other patients' records.
     const { data: appointment, error } = await getServiceClient()
       .from("appointments")
-      .select("appointment_code, department, preferred_date, status, created_at")
-      .or(
-        `appointment_code.eq.${searchValue},patient_phone.eq.${searchValue},patient_email.eq.${searchValue}`
-      )
+      .select("appointment_code, department, preferred_date, status, created_at, verification_code")
+      .eq("appointment_code", searchValue)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -192,6 +202,14 @@ router.post("/track", async (req: Request, res: Response) => {
       // Generic not-found so we never reveal whether another user's record exists.
       return void res.status(404).json({
         error: "No appointment found for the given reference",
+      });
+    }
+
+    // Verify the caller knows the verification code (PIN or last-4 of phone).
+    // This prevents enumeration via appointment code alone.
+    if (appointment.verification_code !== verificationCode) {
+      return void res.status(403).json({
+        error: "Invalid verification code",
       });
     }
 
@@ -229,9 +247,9 @@ const STAFF_ROLES_FOR_CONSENT = STAFF_ROLES.filter(
 router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user as { id: string };
-    const profile = (req as any).profile as { role?: string; id: string; is_active?: boolean };
+    const profile = (req as any).profile as { role?: string; id: string; is_active?: boolean; employee_id?: string };
     const id = String(req.params.id);
-    const { accept } = req.body;
+    const { accept, staff_pin } = req.body;
 
     if (accept === undefined || accept === null) {
       return void res.status(400).json({ error: "accept field is required (true/false)" });
@@ -257,9 +275,21 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
     }
     const isStaffRole = (STAFF_ROLES_FOR_CONSENT as string[]).includes(profile.role ?? "");
 
-    // Staff acting on a patient's behalf must have an active account.
-    if (isStaffRole && profile.is_active === false) {
-      return void res.status(403).json({ error: "Forbidden" });
+    // Staff acting on a patient's behalf must have an active account AND
+    // provide a staff PIN (last 4 digits of their employee_id) for audit trail.
+    if (isStaffRole) {
+      if (profile.is_active === false) {
+        return void res.status(403).json({ error: "Forbidden" });
+      }
+      // Staff must confirm identity with their PIN.
+      // The PIN is the last 4 characters of their employee_id.
+      const expectedPin = profile.employee_id ? profile.employee_id.slice(-4) : null;
+      if (!staff_pin) {
+        return void res.status(400).json({ error: "Staff PIN is required for consent actions" });
+      }
+      if (expectedPin && staff_pin !== expectedPin) {
+        return void res.status(403).json({ error: "Invalid staff PIN" });
+      }
     }
 
     if (!isStaffRole) {

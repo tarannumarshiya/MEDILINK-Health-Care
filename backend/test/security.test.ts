@@ -206,10 +206,10 @@ class MockSupabaseClient {
 
 const SEED: Record<string, Row[]> = {
   profiles: [
-    { id: "p-a", role: "PATIENT", is_active: true, full_name: "Alice", email: "a@x.io" },
-    { id: "p-b", role: "PATIENT", is_active: true, full_name: "Bob", email: "b@x.io" },
-    { id: "p-doc", role: "DOCTOR", is_active: true, full_name: "Dr. X", email: "d@x.io" },
-    { id: "p-doc-off", role: "DOCTOR", is_active: false, full_name: "Dr. Off", email: "z@x.io" },
+    { id: "p-a", role: "PATIENT", is_active: true, full_name: "Alice", email: "a@x.io", employee_id: null },
+    { id: "p-b", role: "PATIENT", is_active: true, full_name: "Bob", email: "b@x.io", employee_id: null },
+    { id: "p-doc", role: "DOCTOR", is_active: true, full_name: "Dr. X", email: "d@x.io", employee_id: "EMP-0099" },
+    { id: "p-doc-off", role: "DOCTOR", is_active: false, full_name: "Dr. Off", email: "z@x.io", employee_id: "EMP-0098" },
   ],
   patients: [
     { id: "patient-a", profile_id: "p-a", phone: "1111111111" },
@@ -221,9 +221,10 @@ const SEED: Record<string, Row[]> = {
     { id: "rem-anon", profile_id: null, patient_phone: "9999999999", medicine_name: "Anon", frequency: "monthly", next_reminder_date: "2026-01-02", is_active: true },
   ],
   appointments: [
-    { id: "apt-a", appointment_code: "APT-TEST-100001", patient_id: "patient-a", patient_name: "Alice", patient_phone: "1111111111", patient_email: "a@x.io", department: "Cardiology", preferred_date: "2026-08-10", symptoms: "chest pain", prescription_text: "leaked rx", lab_report_url: "https://secret", status: "PENDING_PATIENT_APPROVAL", lab_required: false, created_at: "2026-08-01T00:00:00Z" },
-    { id: "apt-b", appointment_code: "APT-TEST-200002", patient_id: "patient-b", patient_name: "Bob", patient_phone: "2222222222", patient_email: "b@x.io", department: "Ortho", preferred_date: "2026-08-12", symptoms: "knee", status: "PENDING_PATIENT_APPROVAL", lab_required: false, created_at: "2026-08-02T00:00:00Z" },
-    { id: "apt-c", appointment_code: "APT-TEST-300003", patient_id: "patient-b", patient_name: "Bob", patient_phone: "2222222222", patient_email: "b@x.io", department: "Cardio", preferred_date: "2026-08-14", symptoms: "bp", status: "PENDING_PATIENT_APPROVAL", lab_required: false, created_at: "2026-08-03T00:00:00Z" },
+    // verification_code = last 4 of phone (identity knowledge factor)
+    { id: "apt-a", appointment_code: "APT-TEST-100001", verification_code: "1111", patient_id: "patient-a", patient_name: "Alice", patient_phone: "1111111111", patient_email: "a@x.io", department: "Cardiology", preferred_date: "2026-08-10", symptoms: "chest pain", prescription_text: "leaked rx", lab_report_url: "https://secret", status: "PENDING_PATIENT_APPROVAL", lab_required: false, created_at: "2026-08-01T00:00:00Z" },
+    { id: "apt-b", appointment_code: "APT-TEST-200002", verification_code: "2222", patient_id: "patient-b", patient_name: "Bob", patient_phone: "2222222222", patient_email: "b@x.io", department: "Ortho", preferred_date: "2026-08-12", symptoms: "knee", status: "PENDING_PATIENT_APPROVAL", lab_required: false, created_at: "2026-08-02T00:00:00Z" },
+    { id: "apt-c", appointment_code: "APT-TEST-300003", verification_code: "2222", patient_id: "patient-b", patient_name: "Bob", patient_phone: "2222222222", patient_email: "b@x.io", department: "Cardio", preferred_date: "2026-08-14", symptoms: "bp", status: "PENDING_PATIENT_APPROVAL", lab_required: false, created_at: "2026-08-03T00:00:00Z" },
   ],
   audit_logs: [],
 };
@@ -344,7 +345,7 @@ async function main() {
   await check("track returns only the allowed minimal fields", async () => {
     const { status, json } = await api("/api/appointments/track", {
       method: "POST",
-      body: { search: "APT-TEST-100001" },
+      body: { search: "APT-TEST-100001", verification_code: "1111" },
     });
     assert.strictEqual(status, 200);
     assert.deepStrictEqual(Object.keys(json.data).sort(), [
@@ -357,17 +358,27 @@ async function main() {
     assert.strictEqual(json.data.demo_data, true);
   });
   await check("track never leaks prescription/lab/PII", async () => {
-    const { json } = await api("/api/appointments/track", { method: "POST", body: { search: "APT-TEST-100001" } });
+    const { json } = await api("/api/appointments/track", { method: "POST", body: { search: "APT-TEST-100001", verification_code: "1111" } });
     const raw = JSON.stringify(json);
     for (const leaked of ["leaked rx", "https://secret", "prescription_text", "lab_report_url", "symptoms", "chest pain", "patient_name", "Alice", "1111111111"]) {
       assert.ok(!raw.includes(leaked), `track response leaked '${leaked}'`);
     }
   });
+  await check("track with wrong verification_code returns 403", async () => {
+    assert.strictEqual((await api("/api/appointments/track", { method: "POST", body: { search: "APT-TEST-100001", verification_code: "9999" } })).status, 403);
+  });
+  await check("track without verification_code returns 400", async () => {
+    assert.strictEqual((await api("/api/appointments/track", { method: "POST", body: { search: "APT-TEST-100001" } })).status, 400);
+  });
   await check("track with unknown reference returns a generic 404", async () => {
-    assert.strictEqual((await api("/api/appointments/track", { method: "POST", body: { search: "APT-TEST-999999" } })).status, 404);
+    assert.strictEqual((await api("/api/appointments/track", { method: "POST", body: { search: "APT-TEST-999999", verification_code: "1111" } })).status, 404);
   });
   await check("track with blank search returns 400", async () => {
-    assert.strictEqual((await api("/api/appointments/track", { method: "POST", body: { search: "  " } })).status, 400);
+    assert.strictEqual((await api("/api/appointments/track", { method: "POST", body: { search: "  ", verification_code: "1111" } })).status, 400);
+  });
+  await check("track by phone number is rejected (no enumeration via phone)", async () => {
+    // Previously allowed phone-based lookup; now only appointment_code is accepted
+    assert.strictEqual((await api("/api/appointments/track", { method: "POST", body: { search: "1111111111", verification_code: "1111" } })).status, 404);
   });
 
   console.log("\n Consent workflow —");
@@ -388,13 +399,19 @@ async function main() {
     assert.strictEqual(entry.details.simulated, true);
     assert.strictEqual(entry.details.consented_by, "p-a");
   });
-  await check("active staff (DOCTOR) consent on behalf returns 200 simulated", async () => {
-    const { status, json } = await api("/api/appointments/apt-b/consent", { token: "p-doc", method: "POST", body: { accept: true } });
+  await check("active staff consent without PIN returns 400", async () => {
+    assert.strictEqual((await api("/api/appointments/apt-b/consent", { token: "p-doc", method: "POST", body: { accept: true } })).status, 400);
+  });
+  await check("active staff consent with wrong PIN returns 403", async () => {
+    assert.strictEqual((await api("/api/appointments/apt-b/consent", { token: "p-doc", method: "POST", body: { accept: true, staff_pin: "0000" } })).status, 403);
+  });
+  await check("active staff consent with correct PIN returns 200 simulated", async () => {
+    const { status, json } = await api("/api/appointments/apt-b/consent", { token: "p-doc", method: "POST", body: { accept: true, staff_pin: "0099" } });
     assert.strictEqual(status, 200);
     assert.strictEqual(json.consent.simulated, true);
   });
   await check("inactive staff consent is rejected with 403", async () => {
-    assert.strictEqual((await api("/api/appointments/apt-c/consent", { token: "p-doc-off", method: "POST", body: { accept: true } })).status, 403);
+    assert.strictEqual((await api("/api/appointments/apt-c/consent", { token: "p-doc-off", method: "POST", body: { accept: true, staff_pin: "0098" } })).status, 403);
   });
 
   console.log("\n");

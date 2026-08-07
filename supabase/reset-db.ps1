@@ -65,6 +65,7 @@ if (-not (Get-Command psql -ErrorAction SilentlyContinue)) {
 
 # All application tables (order respects FKs)
 $truncateTables = @(
+  "consent_audit_log",
   "audit_logs",
   "notifications",
   "payments",
@@ -124,14 +125,14 @@ Write-Host "====================================================" -ForegroundCol
 Write-Host "  MEDILINK Database Reset (UAT)" -ForegroundColor Green
 Write-Host "====================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "[1/4] Truncating application tables..." -ForegroundColor Yellow
+Write-Host "[1/5] Truncating application tables..." -ForegroundColor Yellow
 Invoke-Sql $truncateSql "Truncate all application data (preserving auth.users)"
 
 # ---------------------------------------------------------------------------
 # Step 2: Migration 001
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "[2/4] Applying migration 001_initial_schema.sql ..." -ForegroundColor Yellow
+Write-Host "[2/5] Applying migration 001_initial_schema.sql ..." -ForegroundColor Yellow
 $migration1 = Get-Content (Join-Path $PSScriptRoot "migrations\001_initial_schema.sql") -Raw
 Invoke-Sql $migration1 "001_initial_schema"
 
@@ -139,15 +140,23 @@ Invoke-Sql $migration1 "001_initial_schema"
 # Step 3: Migration 002
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "[3/4] Applying migration 002_align_backend_schema.sql ..." -ForegroundColor Yellow
+Write-Host "[3/5] Applying migration 002_align_backend_schema.sql ..." -ForegroundColor Yellow
 $migration2 = Get-Content (Join-Path $PSScriptRoot "migrations\002_align_backend_schema.sql") -Raw
 Invoke-Sql $migration2 "002_align_backend_schema"
 
 # ---------------------------------------------------------------------------
-# Step 4: Seed
+# Step 4: Migration 003
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "[4/4] Loading seed data (uat_seed_data.sql) ..." -ForegroundColor Yellow
+Write-Host "[4/5] Applying migration 003_security_hardening.sql ..." -ForegroundColor Yellow
+$migration3 = Get-Content (Join-Path $PSScriptRoot "migrations\003_security_hardening.sql") -Raw
+Invoke-Sql $migration3 "003_security_hardening"
+
+# ---------------------------------------------------------------------------
+# Step 5: Seed
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "[5/5] Loading seed data (uat_seed_data.sql) ..." -ForegroundColor Yellow
 $seed = Get-Content (Join-Path $PSScriptRoot "seed\uat_seed_data.sql") -Raw
 Invoke-Sql $seed "Seed data"
 
