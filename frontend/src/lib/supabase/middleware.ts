@@ -29,6 +29,7 @@ const protectedRoutes: Record<string, string[]> = {
   "/insurance/dashboard": [...INSUR_ROLES,  SA],
   "/billing":             [...BILL_ROLES,   ...ADMIN_ROLES],
   "/patient/dashboard":   ["PATIENT", "patient"],
+  "/medicine-remainders": ["PATIENT", "patient"],
 };
 
 const publicRoutes = [
@@ -69,6 +70,7 @@ function getAllowedRoles(pathname: string) {
 }
 
 function getLoginPage(pathname: string): string {
+  if (pathname.startsWith("/medicine-remainders")) return "/patient/login";
   if (pathname.startsWith("/patient"))          return "/patient/login";
   if (pathname.startsWith("/emergency"))        return "/emergency/login";
   if (pathname.startsWith("/doctor"))           return "/doctor/login";

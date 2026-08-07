@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient, resolveRequestClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { STAFF_ROLES } from "../lib/roles";
 
@@ -40,7 +40,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
     const profile = (req as any).profile as { role?: string };
 
     // Get the authenticated patient's phone number
-    const { data: patient, error: patientError } = await serviceClient
+    const { data: patient, error: patientError } = await getServiceClient()
       .from("patients")
       .select("phone")
       .eq("profile_id", user.id)
@@ -60,7 +60,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .select("*")
       .eq("profile_id", user.id)
@@ -75,8 +75,12 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 
 /* -------------------------------------------------------------------------- */
 /*  POST /api/reminders  —  create a new reminder                             */
-/*  Public endpoint: anyone can create reminders for a phone number            */
-/*  This enables the public pharmacy page to work without authentication       */
+/*  Public create-by-phone is preserved (enables the pharmacy catalogue page). *
+/*  Security hardening:                                                        */
+/*    • profile_id is NEVER accepted from the request body.                    */
+/*    • If the caller is authenticated AND has a patient profile, the          */
+/*      reminder is ownership-linked to that patient so it can be managed      */
+/*      through the authenticated GET/PUT/DELETE endpoints.                    */
 /* -------------------------------------------------------------------------- */
 router.post("/", async (req: Request, res: Response) => {
   try {
@@ -101,7 +105,27 @@ router.post("/", async (req: Request, res: Response) => {
 
     const next_reminder_date = getNextReminderDate(frequency, start_date);
 
-    const { data, error } = await serviceClient
+    // Ownership link: only ever from the authenticated caller's own profile.
+    // Never derived from the request body.
+    let profile_id: string | null = null;
+    try {
+      const authClient = resolveRequestClient(req);
+      const { data: { user }, error: authError } = await authClient.auth.getUser();
+      if (!authError && user) {
+        const { data: ownedPatient } = await getServiceClient()
+          .from("patients")
+          .select("id")
+          .eq("profile_id", user.id)
+          .maybeSingle();
+        if (ownedPatient) {
+          profile_id = user.id;
+        }
+      }
+    } catch {
+      // Anonymous callers are still allowed to create a reminder.
+    }
+
+    const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .insert({
         patient_phone: String(patient_phone).trim(),
@@ -112,6 +136,7 @@ router.post("/", async (req: Request, res: Response) => {
         next_reminder_date,
         notes: notes || null,
         is_active: true,
+        profile_id,
       })
       .select("*")
       .single();
@@ -133,7 +158,7 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     const profile = (req as any).profile as { role?: string };
     const { id } = req.params;
 
-    const { data: existing } = await serviceClient
+    const { data: existing } = await getServiceClient()
       .from("medicine_reminders")
       .select("id, patient_phone, profile_id")
       .eq("id", id)
@@ -159,7 +184,7 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
       );
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .update(updateData)
       .eq("id", id)
@@ -183,7 +208,7 @@ router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     const profile = (req as any).profile as { role?: string };
     const { id } = req.params;
 
-    const { data: existing } = await serviceClient
+    const { data: existing } = await getServiceClient()
       .from("medicine_reminders")
       .select("id, patient_phone, profile_id")
       .eq("id", id)
@@ -198,7 +223,7 @@ router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
-    const { error } = await serviceClient
+    const { error } = await getServiceClient()
       .from("medicine_reminders")
       .delete()
       .eq("id", id);

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
-import { Bell, Calendar, Pill, Trash2, Loader2, Search } from "lucide-react";
+import { Bell, Calendar, Pill, Trash2, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/apiFetch";
 
 type Reminder = {
@@ -17,50 +19,97 @@ type Reminder = {
 };
 
 export default function MedicineRemindersPage() {
-  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
   const [reminders, setReminders] = useState<Reminder[]>([]);
 
-  async function loadReminders() {
-    if (!phone.trim()) {
-      alert("Please enter phone number.");
-      return;
-    }
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      setSignedIn(!!data.session);
+      setAuthLoading(false);
 
-    setLoading(true);
-    setSearched(true);
-
-    try {
-      const res = await apiFetch(
-        `/api/reminders?patient_phone=${encodeURIComponent(phone.trim())}`
-      );
-
-      const data: { success: boolean; reminders?: Reminder[]; error?: string } =
-        await res.json();
-
-      if (!res.ok || !data.success) {
-        alert(data.error || "Failed to load reminders.");
-        return;
+      if (data.session) {
+        setLoading(true);
+        apiFetch("/api/reminders")
+          .then(async (res) => {
+            const body: { success: boolean; reminders?: Reminder[]; error?: string } =
+              await res.json();
+            if (body.success) setReminders(body.reminders || []);
+          })
+          .finally(() => setLoading(false));
       }
-
-      setReminders(data.reminders || []);
-    } catch {
-      alert("Backend not reachable. Please check backend server.");
-    } finally {
-      setLoading(false);
-    }
-  }
+    });
+  }, []);
 
   async function deleteReminder(id: string) {
     if (!confirm("Delete reminder?")) return;
 
     try {
-      await apiFetch(`/api/reminders/${id}`, { method: "DELETE" });
-      await loadReminders();
+      const res = await apiFetch(`/api/reminders/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        alert(body?.error || "Failed to delete reminder.");
+        return;
+      }
+      setReminders((prev) => prev.filter((r) => r.id !== id));
     } catch {
       alert("Failed to delete reminder.");
     }
+  }
+
+  if (authLoading) {
+    return (
+      <>
+        <PublicNavbar />
+        <main className="pb-20 pt-28 text-center">
+          <Loader2 className="mx-auto animate-spin text-primary" size={42} />
+        </main>
+        <PublicFooter />
+      </>
+    );
+  }
+
+  if (!signedIn) {
+    return (
+      <>
+        <PublicNavbar />
+        <main className="pb-20 pt-28">
+          <section className="mx-auto max-w-2xl px-6">
+            <div className="rounded-3xl glass-card p-12 text-center">
+              <div
+                className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full"
+                style={{ background: "var(--gradient-primary)" }}
+              >
+                <Bell size={38} className="text-white" />
+              </div>
+              <h1 className="font-display text-3xl font-extrabold">Medicine Reminders</h1>
+              <p className="mx-auto mt-4 max-w-md text-muted-foreground">
+                For privacy, medicine reminders are now shown only to the logged-in
+                owning patient. Please sign in to view and manage your reminders.
+              </p>
+              <div className="mt-8 flex justify-center gap-4">
+                <Link
+                  href="/patient/login"
+                  className="rounded-2xl px-6 py-3 font-bold text-white"
+                  style={{ background: "var(--gradient-primary)" }}
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/patient/register"
+                  className="rounded-2xl border-2 px-6 py-3 font-bold"
+                >
+                  Create account
+                </Link>
+              </div>
+            </div>
+          </section>
+        </main>
+        <PublicFooter />
+      </>
+    );
   }
 
   return (
@@ -82,35 +131,9 @@ export default function MedicineRemindersPage() {
             </h1>
 
             <p className="mt-4 text-muted-foreground">
-              Search your phone number to view and manage recurring medicine
-              reminders.
+              Your reminders. You can only see and manage the reminders saved to your
+              account.
             </p>
-          </div>
-
-          <div className="mx-auto mb-10 flex max-w-xl gap-3">
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") loadReminders();
-              }}
-              placeholder="Enter phone number"
-              className="w-full rounded-2xl border border-border p-4 outline-none focus:border-primary"
-            />
-
-            <button
-              onClick={loadReminders}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-2xl px-6 font-bold text-white disabled:opacity-60"
-              style={{ background: "var(--gradient-primary)" }}
-            >
-              {loading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Search size={18} />
-              )}
-              Search
-            </button>
           </div>
 
           {loading ? (
@@ -120,22 +143,13 @@ export default function MedicineRemindersPage() {
                 Loading reminders...
               </p>
             </div>
-          ) : !searched ? (
-            <div className="rounded-3xl glass-card p-16 text-center">
-              <Bell className="mx-auto text-primary" size={48} />
-              <h3 className="mt-5 text-2xl font-bold">
-                Search your reminders
-              </h3>
-              <p className="mt-3 text-muted-foreground">
-                Enter your phone number and click Search.
-              </p>
-            </div>
           ) : reminders.length === 0 ? (
             <div className="rounded-3xl glass-card p-16 text-center">
               <Bell className="mx-auto text-primary" size={48} />
               <h3 className="mt-5 text-2xl font-bold">No reminders found</h3>
               <p className="mt-3 text-muted-foreground">
-                Save reminders from the Pharmacy page.
+                Save reminders from the Pharmacy page while signed in, and they will
+                appear here.
               </p>
             </div>
           ) : (

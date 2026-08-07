@@ -129,7 +129,7 @@ router.post("/check-in", requireAuth, requireRole(REC_ROLES), async (req: Reques
     if (aErr || !appt) return void res.status(500).json({ error: aErr?.message ?? "Appointment creation failed" });
 
     // --- AUTO-GENERATE INVOICE ---
-    let fee = 500; // Default fallback fee
+    const fee = 500; // Default fallback fee
     const { data: existingInv } = await serviceClient
       .from("invoices")
       .select("id")
