@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { EMERGENCY_ROLES } from "../lib/roles";
 
 const router = Router();
-const EM_ROLES = ["EMERGENCY_STAFF", "EMERGENCY_ADMIN", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN", "DOCTOR", "EMERGENCY"];
+const EM_ROLES = EMERGENCY_ROLES;
 
 // GET /api/emergency/public-status  — no auth, shows bed availability for patients
 router.get("/public-status", async (_req: Request, res: Response) => {

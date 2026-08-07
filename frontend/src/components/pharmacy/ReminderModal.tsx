@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Bell, Loader2, X } from "lucide-react";
+import { apiFetch } from "@/lib/apiFetch";
 
 type Medicine = {
   id: string;
@@ -39,11 +40,8 @@ export default function ReminderModal({ open, onClose, medicine }: Props) {
     setSaving(true);
 
     try {
-      const res = await fetch("http://localhost:4000/api/reminders", {
+      const res = await apiFetch("/api/reminders", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           patient_phone: phone.trim(),
           medicine_id: currentMedicine.id,
@@ -66,7 +64,7 @@ export default function ReminderModal({ open, onClose, medicine }: Props) {
       setNotes("");
       onClose();
     } catch {
-      alert("Backend not reachable. Please check backend server on port 4000.");
+      alert("Backend not reachable. Please check backend server.");
     } finally {
       setSaving(false);
     }

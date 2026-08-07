@@ -2,9 +2,9 @@ import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceCode } from "../lib/ids";
+import { BILLING_ROLES } from "../lib/roles";
 
 const router = Router();
-const BILLING_ROLES = ["BILLING", "BILLING_STAFF", "BILLING_ADMIN", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"];
 
 // ── GET /api/billing/invoices ─────────────────────────────────────────────────
 router.get("/invoices", requireAuth, requireRole(BILLING_ROLES), async (req: Request, res: Response) => {

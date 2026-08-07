@@ -254,9 +254,8 @@ export default function PatientDashboardPage() {
   async function handleConsent(appointmentId: string, accept: boolean) {
     if (!confirm(`Are you sure you want to ${accept ? "accept" : "reject"} the prescribed lab tests and medicines?`)) return;
     try {
-      const res = await fetch(`/api/appointments/${appointmentId}/consent`, {
+      const res = await apiFetch(`/api/appointments/${appointmentId}/consent`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accept })
       });
       const data = await res.json();

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { serviceClient, createRequestClient } from "../lib/supabase";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireRole } from "../middleware/auth";
+import { NOTIFICATION_ADMIN_ROLES } from "../lib/roles";
 
 const router = Router();
 
@@ -23,13 +24,32 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 });
 
 // POST /api/notifications/create
+// Patients can only create self-notifications. Staff/admin can notify any user.
 router.post("/create", requireAuth, async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
+    const profile = (req as any).profile;
     const { user_id, type, title, body, entity_id, entity_table, priority } = req.body;
-    if (!user_id || !title || !body) return void res.status(400).json({ error: "user_id, title, body required" });
+    if (!title || !body) return void res.status(400).json({ error: "title and body required" });
+
+    // Determine target user_id:
+    // - If user_id is provided and the caller is staff, allow it.
+    // - If user_id is provided and the caller is a patient, only allow self.
+    // - If user_id is not provided, default to the caller's own id.
+    let targetUserId: string;
+    const isStaff = profile?.role && NOTIFICATION_ADMIN_ROLES.includes(profile.role);
+
+    if (user_id) {
+      if (!isStaff && user_id !== user.id) {
+        return void res.status(403).json({ error: "Patients cannot send notifications to other users" });
+      }
+      targetUserId = user_id;
+    } else {
+      targetUserId = user.id;
+    }
 
     const { data, error } = await serviceClient.from("notifications").insert({
-      user_id,
+      user_id: targetUserId,
       type: type ?? "GENERAL",
       title,
       body,

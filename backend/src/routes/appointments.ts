@@ -1,50 +1,14 @@
 import { Router, Request, Response } from "express";
 import { createRequestClient, serviceClient } from "../lib/supabase";
+import { requireAuth } from "../middleware/auth";
 import {
   generateAppointmentCode,
   generatePatientCode,
 } from "../lib/ids";
 import { generateInvoiceForAppointment } from "../lib/billing";
+import { STAFF_ROLES } from "../lib/roles";
 
 const router = Router();
-
-/* -------------------------------------------------------------------------- */
-/*                               Helper Methods                               */
-/* -------------------------------------------------------------------------- */
-
-function maskName(name: string) {
-  if (!name) return name;
-
-  return name
-    .split(" ")
-    .map((part) => {
-      if (part.length <= 2) return part[0] + "*";
-      return part[0] + "*".repeat(part.length - 2) + part.slice(-1);
-    })
-    .join(" ");
-}
-
-function maskPhone(phone: string) {
-  if (!phone) return phone;
-  if (phone.length < 6) return "***";
-  return (
-    phone.substring(0, 3) +
-    "*".repeat(phone.length - 5) +
-    phone.substring(phone.length - 2)
-  );
-}
-
-function maskCode(code: string) {
-  if (!code) return code;
-
-  const parts = code.split("-");
-
-  if (parts.length === 3) {
-    return `${parts[0]}-${parts[1]}-***${parts[2].slice(-2)}`;
-  }
-
-  return "***";
-}
 
 /* -------------------------------------------------------------------------- */
 /*                         POST /api/appointments/create                      */
@@ -193,6 +157,10 @@ router.post("/create", async (req: Request, res: Response) => {
 
 /* -------------------------------------------------------------------------- */
 /*                          POST /api/appointments/track                      */
+/*                                                                             */
+/*  SECURE TRIAL FLOW: returns ONLY minimal public status. Sensitive details   */
+/*  (name, phone, email, symptoms, prescriptions, lab reports, payment) are    */
+/*  never returned to unauthenticated callers.                                 */
 /* -------------------------------------------------------------------------- */
 
 router.post("/track", async (req: Request, res: Response) => {
@@ -202,94 +170,41 @@ router.post("/track", async (req: Request, res: Response) => {
     if (!searchValue) {
       return void res.status(400).json({
         error:
-          "Patient ID, Appointment ID or phone number is required",
+          "Appointment reference, patient ID or phone number is required",
       });
     }
 
-    const isCodeSearch =
-      searchValue.startsWith("PAT-") ||
-      searchValue.startsWith("APT-");
-
-    const { data: patient } = await serviceClient
-      .from("patients")
-      .select(
-        "id, patient_code, full_name, age, phone, email, description"
-      )
+    const { data: appointment, error } = await serviceClient
+      .from("appointments")
+      .select("appointment_code, department, preferred_date, status, created_at")
       .or(
-        `patient_code.eq.${searchValue},phone.eq.${searchValue},email.eq.${searchValue}`
+        `appointment_code.eq.${searchValue},patient_phone.eq.${searchValue},patient_email.eq.${searchValue}`
       )
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    let query = serviceClient
-      .from("appointments")
-      .select(`
-        id,
-        appointment_code,
-        patient_id,
-        patient_name,
-        patient_phone,
-        patient_email,
-        department,
-        preferred_date,
-        preferred_time,
-        symptoms,
-        status,
-        prescription_text,
-        lab_report_url,
-        lab_required,
-        created_at,
-        updated_at
-      `)
-      .order("created_at", {
-        ascending: false,
-      });
-
-    if (patient) {
-      query = query.eq("patient_id", patient.id);
-    } else {
-      query = query.or(
-        `appointment_code.eq.${searchValue},patient_phone.eq.${searchValue},patient_email.eq.${searchValue}`
-      );
-    }
-
-    const { data: appointments, error } = await query;
-
     if (error) {
-      return void res.status(500).json({
-        error: error.message,
-      });
+      return void res.status(500).json({ error: "Unable to look up appointment" });
     }
 
-    if (!appointments || appointments.length === 0) {
+    if (!appointment) {
+      // Generic not-found so we never reveal whether another user's record exists.
       return void res.status(404).json({
-        error: "No appointment found",
+        error: "No appointment found for the given reference",
       });
     }
 
-    if (!isCodeSearch) {
-      const maskedAppointments = appointments.map((app: any) => ({
-        ...app,
-        patient_name: maskName(app.patient_name),
-        patient_phone: maskPhone(app.patient_phone),
-        patient_email: null,
-        appointment_code: maskCode(app.appointment_code),
-        symptoms: null,
-        prescription_text: null,
-        lab_report_url: null,
-      }));
-
-      return void res.json({
-        success: true,
-        isLimited: true,
-        patient: null,
-        appointments: maskedAppointments,
-      });
-    }
-
-    res.json({
+    // Minimal public status only — no PII, medical or payment fields.
+    return void res.json({
       success: true,
-      patient,
-      appointments,
+      data: {
+        appointment_reference: appointment.appointment_code,
+        status: appointment.status,
+        appointment_date: appointment.preferred_date,
+        department: appointment.department,
+        demo_data: true,
+      },
     });
   } catch (error) {
     console.error(error);
@@ -301,35 +216,69 @@ router.post("/track", async (req: Request, res: Response) => {
 });
 /* -------------------------------------------------------------------------- */
 /*                    POST /api/appointments/:id/consent                      */
+/*                                                                             */
+/*  Secured: requires authentication. Patient can only consent to their own     */
+/*  appointment. Staff may consent on behalf of patients.                       */
 /* -------------------------------------------------------------------------- */
 
-router.post("/:id/consent", async (req: Request, res: Response) => {
+// Use the centralized STAFF_ROLES from the shared role file
+const STAFF_ROLES_FOR_CONSENT = STAFF_ROLES.filter(
+  (role) => ["DOCTOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN", "RECEPTIONIST"].includes(role)
+);
+
+router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => {
   try {
-    // Fixes TS2345 (string | string[])
+    const user = (req as any).user as { id: string };
+    const profile = (req as any).profile as { role?: string; id: string };
     const id = String(req.params.id);
     const { accept } = req.body;
 
+    if (accept === undefined || accept === null) {
+      return void res.status(400).json({ error: "accept field is required (true/false)" });
+    }
+
     const { data: appointment, error: appointmentError } = await serviceClient
       .from("appointments")
-      .select("id, status, lab_required")
+      .select("id, status, lab_required, patient_id, patient_phone")
       .eq("id", id)
       .single();
 
     if (appointmentError || !appointment) {
-      return void res.status(404).json({
-        error: "Appointment not found",
-      });
+      return void res.status(404).json({ error: "Appointment not found" });
     }
 
     if (appointment.status !== "PENDING_PATIENT_APPROVAL") {
-      return void res.status(400).json({
-        error: "Appointment is not pending approval",
-      });
+      return void res.status(400).json({ error: "Appointment is not pending approval" });
     }
 
-    if (accept) {
-      // Patient accepted medicines/lab
+    // Ownership check: patient can only consent to their own appointment.
+    const isStaffRole = STAFF_ROLES_FOR_CONSENT.includes(profile.role ?? "");
+    if (!isStaffRole) {
+      // Verify the authenticated user owns this appointment via their patient record.
+      const { data: ownedPatient } = await serviceClient
+        .from("patients")
+        .select("id")
+        .eq("profile_id", user.id)
+        .eq("id", appointment.patient_id)
+        .maybeSingle();
 
+      if (!ownedPatient) {
+        // Generic 403 — never reveal whether the appointment exists for another patient.
+        return void res.status(403).json({ error: "Forbidden" });
+      }
+    }
+
+    // Record the consent action in an audit-friendly way.
+    const consentRecord = {
+      appointment_id: id,
+      patient_id: appointment.patient_id,
+      accepted: Boolean(accept),
+      consented_by: user.id,
+      consented_by_role: profile.role,
+      consented_at: new Date().toISOString(),
+    };
+
+    if (accept) {
       const nextStatus = appointment.lab_required
         ? "LAB_REQUESTED"
         : "PRESCRIPTION_READY";
@@ -343,15 +292,9 @@ router.post("/:id/consent", async (req: Request, res: Response) => {
         .eq("id", id);
 
       if (updateError) {
-        return void res.status(500).json({
-          error: updateError.message,
-        });
+        return void res.status(500).json({ error: updateError.message });
       }
-
-      // Invoice will be generated after lab/pharmacy completion
     } else {
-      // Patient rejected medicines/lab
-
       await serviceClient
         .from("appointments")
         .update({
@@ -363,31 +306,19 @@ router.post("/:id/consent", async (req: Request, res: Response) => {
       // Cancel lab tests
       await serviceClient
         .from("lab_tests")
-        .update({
-          status: "CANCELLED",
-        })
+        .update({ status: "CANCELLED" })
         .eq("appointment_id", id)
         .eq("status", "PENDING");
 
       // Cancel prescriptions
       await serviceClient
         .from("prescriptions")
-        .update({
-          status: "CANCELLED",
-        })
+        .update({ status: "CANCELLED" })
         .eq("appointment_id", id);
 
-      // Delete pending lab tests
-      await serviceClient
-        .from("lab_tests")
-        .delete()
-        .eq("appointment_id", id);
-
-      // Delete prescriptions
-      await serviceClient
-        .from("prescriptions")
-        .delete()
-        .eq("appointment_id", id);
+      // Delete pending lab tests and prescriptions
+      await serviceClient.from("lab_tests").delete().eq("appointment_id", id);
+      await serviceClient.from("prescriptions").delete().eq("appointment_id", id);
 
       // Generate consultation-only invoice
       try {
@@ -397,15 +328,19 @@ router.post("/:id/consent", async (req: Request, res: Response) => {
       }
     }
 
-    res.json({
-      success: true,
+    // Audit log entry
+    await serviceClient.from("audit_logs").insert({
+      action: "CONSENT_ACTION",
+      entity_type: "appointment",
+      entity_id: id,
+      performed_by: user.id,
+      details: consentRecord,
     });
+
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
-
-    res.status(500).json({
-      error: "Server error while submitting consent",
-    });
+    res.status(500).json({ error: "Server error while submitting consent" });
   }
 });
 

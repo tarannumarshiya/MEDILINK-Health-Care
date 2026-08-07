@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
+import { config, validateRequiredConfig } from "./lib/config";
 import { apiLimiter, authLimiter, bookingLimiter } from "./middleware/security";
 
 import adminRoutes        from "./routes/admin";
@@ -24,7 +25,10 @@ import auditRoutes        from "./routes/audit";
 
 
 const app  = express();
-const PORT = Number(process.env.PORT ?? 4000);
+const PORT = config.port;
+
+// Fail fast when required configuration is missing.
+validateRequiredConfig();
 
 // Trust proxy for rate limiting behind Render/Vercel
 app.set("trust proxy", 1);
@@ -39,8 +43,7 @@ app.use(helmet({
 app.use(compression());
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000")
-  .split(",").map((o) => o.trim());
+const allowedOrigins = config.corsOrigins;
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -65,7 +68,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/admin",                adminRoutes);
 app.use("/api/appointments",         bookingLimiter, appointmentRoutes);
 app.use("/api/doctor",               doctorRoutes);
-app.use("/api/patients",             patientRoutes);
+app.use("/api/patients",             authLimiter, patientRoutes);
 app.use("/api/contact",              contactRoutes);
 app.use("/api/payment",              paymentRoutes);
 app.use("/api/pharmacy",             pharmacyRoutes);

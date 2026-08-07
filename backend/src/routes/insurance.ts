@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { INSURANCE_ROLES } from "../lib/roles";
 
 const router = Router();
-const INS_ROLES = ["INSURANCE_STAFF", "INSURANCE_ADMIN", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"];
+const INS_ROLES = INSURANCE_ROLES;
 
 // GET /api/insurance/claims
 router.get("/claims", requireAuth, requireRole(INS_ROLES), async (req: Request, res: Response) => {
@@ -27,16 +28,59 @@ router.get("/claims", requireAuth, requireRole(INS_ROLES), async (req: Request, 
 });
 
 // POST /api/insurance/create
+// Patients can create claims only for themselves. Staff can create for any patient.
 router.post("/create", requireAuth, async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
+    const profile = (req as any).profile;
     const { patient_id, policy_id, appointment_id, amount } = req.body;
-    if (!patient_id || !amount) return void res.status(400).json({ error: "patient_id and amount required" });
+    if (!amount) return void res.status(400).json({ error: "amount required" });
+
+    const isStaff = profile?.role && INS_ROLES.includes(profile.role);
+
+    // Resolve the target patient_id:
+    // - If patient_id is provided and caller is staff, allow it.
+    // - If patient_id is provided and caller is a patient, only allow self.
+    // - If patient_id is not provided, resolve from the caller's profile.
+    let targetPatientId: string;
+    if (patient_id) {
+      if (!isStaff) {
+        // Patient: verify this patient_id belongs to them
+        const { data: ownedPatient } = await serviceClient
+          .from("patients")
+          .select("id")
+          .eq("id", patient_id)
+          .eq("profile_id", user.id)
+          .maybeSingle();
+        if (!ownedPatient) {
+          return void res.status(403).json({ error: "You can only create claims for yourself" });
+        }
+      }
+      targetPatientId = patient_id;
+    } else {
+      // Resolve from authenticated user's profile
+      const { data: ownedPatient } = await serviceClient
+        .from("patients")
+        .select("id")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+      if (!ownedPatient) {
+        return void res.status(400).json({ error: "No patient record found for this account" });
+      }
+      targetPatientId = ownedPatient.id;
+    }
+
+    // Validate amount is positive
+    const claimAmount = Number(amount);
+    if (isNaN(claimAmount) || claimAmount <= 0) {
+      return void res.status(422).json({ error: "Amount must be a positive number" });
+    }
 
     const { data, error } = await serviceClient.from("insurance_claims").insert({
-      patient_id,
+      patient_id: targetPatientId,
       policy_id: policy_id ?? null,
       appointment_id: appointment_id ?? null,
-      amount: Number(amount),
+      amount: claimAmount,
       status: "PENDING",
     }).select().single();
 

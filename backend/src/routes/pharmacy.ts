@@ -2,16 +2,9 @@ import { Router, Request, Response } from "express";
 import { createRequestClient, serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceForAppointment } from "../lib/billing";
+import { PHARMACY_ROLES } from "../lib/roles";
 
 const router = Router();
-
-const PHARMACY_ROLES = [
-  "PHARMACIST",
-  "PHARMACY_ADMIN",
-  "ADMIN",
-  "SUPER_ADMIN",
-  "HOSPITAL_ADMIN",
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MEDICINES  →  /api/pharmacy/medicines  (public GET, protected POST)
@@ -171,8 +164,11 @@ router.patch(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ORDERS  →  /api/pharmacy/orders  (public POST, protected GET/PATCH)
+// ORDERS  →  /api/pharmacy/orders  (public POST with server-side pricing,
+//             protected GET/PATCH)
 // ─────────────────────────────────────────────────────────────────────────────
+
+const VALID_ORDER_STATUSES = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"];
 
 router.post("/orders", async (req: Request, res: Response) => {
   try {
@@ -195,13 +191,42 @@ router.post("/orders", async (req: Request, res: Response) => {
         .json({ error: "Patient name and phone number are required" });
     }
 
-    const total = items.reduce(
-      (
-        sum: number,
-        item: { price: number; quantity: number }
-      ) => sum + Number(item.price) * Number(item.quantity),
-      0
-    );
+    // Server-side price calculation: fetch authoritative prices from the
+    // medicines table so the client cannot manipulate pricing.
+    let total = 0;
+    const validatedItems: { medicine_name: string; price: number; quantity: number }[] = [];
+
+    for (const item of items) {
+      const medicineName = item.medicine_name ?? item.name ?? "";
+      const quantity = Number(item.quantity) || 0;
+
+      if (!medicineName || quantity <= 0) {
+        return void res.status(400).json({ error: `Invalid item: ${medicineName || "unnamed"}` });
+      }
+
+      // Look up the authoritative price from the medicines table
+      const { data: medicine } = await serviceClient
+        .from("medicines")
+        .select("id, price, quantity, is_available")
+        .ilike("name", medicineName)
+        .maybeSingle();
+
+      if (!medicine || !medicine.is_available) {
+        return void res.status(400).json({ error: `Medicine "${medicineName}" not found or unavailable` });
+      }
+
+      if (medicine.quantity < quantity) {
+        return void res.status(400).json({ error: `Insufficient stock for "${medicineName}". Available: ${medicine.quantity}` });
+      }
+
+      const unitPrice = Number(medicine.price);
+      total += unitPrice * quantity;
+      validatedItems.push({
+        medicine_name: medicineName,
+        price: unitPrice,
+        quantity,
+      });
+    }
 
     const { data: order, error: orderError } = await serviceClient
       .from("pharmacy_public_orders")
@@ -213,13 +238,7 @@ router.post("/orders", async (req: Request, res: Response) => {
         prescription_image: prescription_image ?? null,
         status: "PENDING",
         total,
-        items: items.map(
-          (item: { name?: string; medicine_name?: string; price: number; quantity: number }) => ({
-            medicine_name: item.medicine_name ?? item.name ?? "Medicine",
-            price: Number(item.price),
-            quantity: Number(item.quantity),
-          })
-        ),
+        items: validatedItems,
       })
       .select("*")
       .single();
@@ -252,10 +271,9 @@ router.post("/orders/track", async (req: Request, res: Response) => {
     const cleanSearch = search.trim();
     let query = serviceClient
       .from("pharmacy_public_orders")
-      .select("*")
+      .select("id, status, patient_name, delivery_type, created_at")
       .order("created_at", { ascending: false });
 
-    // Try treating it as UUID first, otherwise search by phone
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanSearch);
     if (isUuid) {
       query = query.or(`id.eq.${cleanSearch},patient_phone.eq.${cleanSearch}`);
@@ -308,9 +326,13 @@ router.patch(
       return void res.status(400).json({ error: "id and status required" });
     }
 
+    if (!VALID_ORDER_STATUSES.includes(status.toUpperCase())) {
+      return void res.status(422).json({ error: `Invalid status. Allowed: ${VALID_ORDER_STATUSES.join(", ")}` });
+    }
+
     const { error } = await supabase
       .from("pharmacy_public_orders")
-      .update({ status })
+      .update({ status: status.toUpperCase() })
       .eq("id", id);
 
     if (error) return void res.status(500).json({ error: error.message });

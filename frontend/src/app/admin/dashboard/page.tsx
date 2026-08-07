@@ -29,8 +29,14 @@ type Department = {
   id: string; name: string; description: string | null; is_active: boolean; created_at: string;
 };
 type Doctor = {
-  id: string; profile_id: string; department_id: string; qualification: string | null;
+  id: string; profile_id: string; name: string | null; email: string | null; department_id: string; qualification: string | null;
   experience_years: number; consultation_fee: number; is_available: boolean; created_at: string;
+  /* Flattened fields (returned by /api/admin/doctors) */
+  full_name?: string | null;
+  department_name?: string | null;
+  role?: string | null;
+  is_active?: boolean;
+  /* Nested fields (kept for backward compatibility) */
   profiles: { id: string; full_name: string | null; email: string } | { id: string; full_name: string | null; email: string }[] | null;
   departments: { id: string; name: string } | { id: string; name: string }[] | null;
 };
@@ -380,11 +386,11 @@ export default function AdminDashboardPage() {
                       onChange={e => setAssignMap(prev => ({ ...prev, [a.id]: e.target.value }))}
                     >
                       <option value="">Assign Doctor (optional)</option>
-                      {deptDoctors.length > 0 && (
+                        {deptDoctors.length > 0 && (
                         <optgroup label={`── ${a.department} ──`}>
                           {deptDoctors.map(doc => {
                             const prof = p(doc.profiles);
-                            return <option key={doc.id} value={doc.id}>{prof?.full_name ?? prof?.email ?? "Doctor"}</option>;
+                            return <option key={doc.id} value={doc.id}>{doc.full_name ?? prof?.full_name ?? prof?.email ?? "Doctor"}</option>;
                           })}
                         </optgroup>
                       )}
@@ -393,7 +399,7 @@ export default function AdminDashboardPage() {
                           {otherDoctors.map(doc => {
                             const prof = p(doc.profiles);
                             const dept = d(doc.departments);
-                            return <option key={doc.id} value={doc.id}>{prof?.full_name ?? prof?.email ?? "Doctor"} ({dept?.name ?? "—"})</option>;
+                            return <option key={doc.id} value={doc.id}>{doc.full_name ?? prof?.full_name ?? prof?.email ?? "Doctor"} ({doc.department_name ?? dept?.name ?? "—"})</option>;
                           })}
                         </optgroup>
                       )}
@@ -566,8 +572,8 @@ export default function AdminDashboardPage() {
                 return (
                   <div key={doc.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4">
                     <div>
-                      <p className="font-bold text-slate-900">{prof?.full_name ?? prof?.email ?? "Doctor"}</p>
-                      <p className="text-xs text-teal-700">{dept?.name ?? "No dept"}</p>
+                      <p className="font-bold text-slate-900">{doc.full_name ?? doc.name ?? prof?.full_name ?? prof?.email ?? "Doctor"}</p>
+                      <p className="text-xs text-teal-700">{doc.email ?? prof?.email ?? "—"} • {doc.department_name ?? dept?.name ?? "No dept"}</p>
                       <p className="text-xs text-slate-500">
                         {doc.qualification ?? "—"} • {doc.experience_years ?? 0} yrs • ৳{doc.consultation_fee ?? 0}
                       </p>
