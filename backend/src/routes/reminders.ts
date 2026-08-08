@@ -87,7 +87,7 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     const user = (req as any).user as { id: string };
 
     // Get the authenticated patient's phone number
-    const { data: patient, error: patientError } = await serviceClient
+    const { data: patient, error: patientError } = await getServiceClient()
       .from("patients")
       .select("phone")
       .eq("profile_id", user.id)
@@ -147,7 +147,6 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .insert({
-        profile_id: user.id,
         patient_phone: phoneToUse,
         medicine_id: medicine_id ?? null,
         medicine_name,
