@@ -365,4 +365,45 @@ router.post("/verify", requireAuth, async (req: Request, res: Response) => {
   res.json({ verified: true });
 });
 
+/* -------------------------------------------------------------------------- */
+/*                            POST /api/payment/mark-cash                      */
+/* -------------------------------------------------------------------------- */
+
+router.post("/mark-cash", requireAuth, async (req: Request, res: Response) => {
+  const { invoiceCode, purpose = "invoice", referenceId, amount } = req.body;
+
+  const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
+  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  const expectedAmount = resolved.amount as number;
+  const invoiceId = (resolved as any).invoiceId as string | null;
+
+  if (amount != null && !amountsMatch(Number(amount), expectedAmount)) {
+    return void res.status(422).json({ error: "Payment amount does not match invoice" });
+  }
+
+  const paymentId = "cash_" + Date.now();
+  await serviceClient.from("payments").insert({
+    invoice_id: invoiceId,
+    invoice_code: invoiceCode ?? null,
+    amount: expectedAmount,
+    method: "cash",
+    status: "COMPLETED",
+    razorpay_payment_id: paymentId,
+  });
+
+  if (purpose === "pharmacy_order" && referenceId) {
+    await serviceClient
+      .from("pharmacy_public_orders")
+      .update({ status: "CONFIRMED" })
+      .eq("id", referenceId);
+  } else if (invoiceCode) {
+    await serviceClient
+      .from("invoices")
+      .update({ status: "PAID" })
+      .eq("invoice_code", invoiceCode);
+  }
+
+  res.json({ verified: true, paymentId });
+});
+
 export default router;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { initiatePayment, type PayOptions } from "@/lib/payment";
+import { apiFetch } from "@/lib/apiFetch";
 
 type Props = {
   amount: number;
@@ -29,8 +30,31 @@ export default function PayButton({
   onFailure,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
 
-  function handleClick() {
+  async function handleCash() {
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/payment/mark-cash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceCode, purpose, referenceId, amount })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onSuccess({ success: true, paymentId: data.paymentId, orderId: "cash", method: "cash" });
+      } else {
+        onFailure?.({ success: false, error: "Failed to mark as paid via cash" });
+      }
+    } catch (e: any) {
+      onFailure?.({ success: false, error: e.message });
+    } finally {
+      setBusy(false);
+      setShowOptions(false);
+    }
+  }
+
+  function handleRazorpay() {
     setBusy(true);
     initiatePayment({
       amount,
@@ -39,25 +63,47 @@ export default function PayButton({
       prefill,
       purpose,
       referenceId,
-      onSuccess: (r) => { setBusy(false); onSuccess(r); },
-      onFailure: (r) => { setBusy(false); onFailure?.(r); },
+      onSuccess: (r) => { setBusy(false); setShowOptions(false); onSuccess(r); },
+      onFailure: (r) => { setBusy(false); setShowOptions(false); onFailure?.(r); },
     });
+  }
+
+  if (showOptions) {
+    return (
+      <div className={`flex flex-col gap-2 ${className}`}>
+        <p className="text-xs font-bold text-slate-500 mb-1 text-center">Select Payment Method</p>
+        <button
+          disabled={busy}
+          onClick={handleCash}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-100 px-6 py-2.5 text-sm font-black text-emerald-800 hover:bg-emerald-200 active:scale-[0.97] disabled:opacity-50 transition w-full"
+        >
+          {busy ? "Processing…" : "Pay via Cash"}
+        </button>
+        <button
+          disabled={busy}
+          onClick={handleRazorpay}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-black text-white hover:bg-blue-500 active:scale-[0.97] disabled:opacity-50 transition w-full"
+        >
+          {busy ? "Processing…" : "Pay via Razorpay"}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => setShowOptions(false)}
+          className="text-xs font-bold text-slate-400 hover:text-slate-600 underline mt-1"
+        >
+          Cancel
+        </button>
+      </div>
+    );
   }
 
   return (
     <button
       disabled={busy}
-      onClick={handleClick}
+      onClick={() => setShowOptions(true)}
       className={`inline-flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-black text-white shadow-sm hover:bg-emerald-500 active:scale-[0.97] disabled:opacity-50 transition ${className}`}
     >
-      {busy ? (
-        <>
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-          Processing…
-        </>
-      ) : (
-        label ?? `Pay ৳${amount.toLocaleString()}`
-      )}
+      {label ?? `Pay ৳${amount.toLocaleString()}`}
     </button>
   );
 }
