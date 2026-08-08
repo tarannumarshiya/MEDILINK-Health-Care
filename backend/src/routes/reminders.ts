@@ -82,8 +82,20 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 /*      reminder is ownership-linked to that patient so it can be managed      */
 /*      through the authenticated GET/PUT/DELETE endpoints.                    */
 /* -------------------------------------------------------------------------- */
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", requireAuth, async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user as { id: string };
+
+    // Get the authenticated patient's phone number
+    const { data: patient, error: patientError } = await serviceClient
+      .from("patients")
+      .select("phone")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+
+    if (patientError) return res.status(500).json({ success: false, error: patientError.message });
+    if (!patient) return res.status(403).json({ success: false, error: "Patient profile not found" });
+
     const {
       patient_phone,
       medicine_id,
@@ -93,7 +105,14 @@ router.post("/", async (req: Request, res: Response) => {
       notes,
     } = req.body;
 
-    if (!patient_phone || !medicine_name || !frequency) {
+    const phoneToUse = patient_phone ? String(patient_phone).trim() : patient.phone;
+
+    // Restrict data to the correct user
+    if (phoneToUse !== patient.phone) {
+      return res.status(403).json({ success: false, error: "Cannot create reminders for other users" });
+    }
+
+    if (!phoneToUse || !medicine_name || !frequency) {
       return res.status(400).json({
         success: false,
         error: "patient_phone, medicine_name, and frequency are required",
@@ -128,7 +147,8 @@ router.post("/", async (req: Request, res: Response) => {
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .insert({
-        patient_phone: String(patient_phone).trim(),
+        profile_id: user.id,
+        patient_phone: phoneToUse,
         medicine_id: medicine_id ?? null,
         medicine_name,
         frequency,
