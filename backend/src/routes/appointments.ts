@@ -41,9 +41,6 @@ router.post("/create", async (req: Request, res: Response) => {
     }
 
     const appointmentCode = generateAppointmentCode();
-    // Verification code: last 4 digits of phone number for identity confirmation.
-    // This is the minimum knowledge factor required to track an appointment.
-    const verificationCode = phone.slice(-4);
 
     // Resolve Department ID
     const { data: deptRow } = await getServiceClient()
@@ -103,7 +100,6 @@ router.post("/create", async (req: Request, res: Response) => {
         .from("appointments")
         .insert({
           appointment_code: appointmentCode,
-          verification_code: verificationCode,
           patient_id: patient.id,
           patient_name: full_name,
           patient_phone: phone,
@@ -170,17 +166,9 @@ router.post("/create", async (req: Request, res: Response) => {
 router.post("/track", async (req: Request, res: Response) => {
   try {
     const searchValue = String(req.body.search ?? "").trim();
-    const verificationCode = String(req.body.verification_code ?? "").trim();
-
     if (!searchValue) {
       return void res.status(400).json({
         error: "Appointment reference is required",
-      });
-    }
-
-    if (!verificationCode) {
-      return void res.status(400).json({
-        error: "Verification code is required for identity confirmation",
       });
     }
 
@@ -188,7 +176,7 @@ router.post("/track", async (req: Request, res: Response) => {
     // which would enable enumeration of other patients' records.
     const { data: appointment, error } = await getServiceClient()
       .from("appointments")
-      .select("appointment_code, department, preferred_date, status, created_at, verification_code")
+      .select("appointment_code, department, preferred_date, status, created_at")
       .eq("appointment_code", searchValue)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -205,13 +193,6 @@ router.post("/track", async (req: Request, res: Response) => {
       });
     }
 
-    // Verify the caller knows the verification code (PIN or last-4 of phone).
-    // This prevents enumeration via appointment code alone.
-    if (appointment.verification_code !== verificationCode) {
-      return void res.status(403).json({
-        error: "Invalid verification code",
-      });
-    }
 
     // Minimal public status only — no PII, medical or payment fields.
     return void res.json({

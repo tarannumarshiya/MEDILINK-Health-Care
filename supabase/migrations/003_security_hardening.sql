@@ -7,24 +7,7 @@
 -- consent action records. Every statement is idempotent.
 
 -- ============================================================================
--- 1. APPOINTMENTS — add verification_code column
--- ============================================================================
--- The verification code is the last 4 digits of the patient's phone number.
--- Public tracking requires both appointment_code AND verification_code,
--- preventing enumeration via appointment reference alone.
-ALTER TABLE appointments ADD COLUMN IF NOT EXISTS verification_code TEXT;
 
--- Backfill existing appointments: use last 4 of patient_phone where available
-UPDATE appointments
-SET verification_code = RIGHT(patient_phone, 4)
-WHERE verification_code IS NULL AND patient_phone IS NOT NULL AND LENGTH(patient_phone) >= 4;
-
--- For appointments without a phone, set a placeholder that forces re-verification
-UPDATE appointments
-SET verification_code = '0000'
-WHERE verification_code IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_appointments_verification ON appointments(verification_code);
 
 -- ============================================================================
 -- 2. PROFILES — add employee_id column for staff identity verification

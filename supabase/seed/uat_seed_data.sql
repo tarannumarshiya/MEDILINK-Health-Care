@@ -141,12 +141,11 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 10. APPOINTMENTS (cover a range of statuses for testing)
 -- ============================================================================
-INSERT INTO appointments (id, appointment_code, verification_code, patient_id, doctor_id, patient_name, patient_phone, department, department_id, preferred_date, preferred_time, symptoms, status, lab_required) VALUES
-  -- verification_code = last 4 digits of patient_phone (identity knowledge factor)
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567801', 'APT-2026-001', '5678', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-10', '10:00', 'Fever and headache for 3 days', 'PENDING_PATIENT_APPROVAL', true),
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567802', 'APT-2026-002', '5679', 'd1b2c3d4-e5f6-7890-abcd-ef1234567802', 'e1b2c3d4-e5f6-7890-abcd-ef1234567802', 'John Smith',    '+8801712345679', 'Cardiology',      'a1b2c3d4-e5f6-7890-abcd-ef1234567802', '2026-08-11', '14:00', 'Chest pain and shortness of breath', 'LAB_REQUESTED', true),
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567803', 'APT-2026-003', '5680', 'd1b2c3d4-e5f6-7890-abcd-ef1234567803', NULL, 'Sarah Wilson', '+8801712345680', 'Dermatology',     'a1b2c3d4-e5f6-7890-abcd-ef1234567805', '2026-08-12', '11:00', 'Skin rash on arms', 'PENDING', false),
-  ('i1b2c3d4-e5f6-7890-abcd-ef1234567804', 'APT-2026-004', '5678', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-14', '09:00', 'Follow-up checkup', 'COMPLETED', false)
+INSERT INTO appointments (id, appointment_code, patient_id, doctor_id, patient_name, patient_phone, department, department_id, preferred_date, preferred_time, symptoms, status, lab_required) VALUES
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567801', 'APT-2026-001', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-10', '10:00', 'Fever and headache for 3 days', 'PENDING_PATIENT_APPROVAL', true),
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567802', 'APT-2026-002', 'd1b2c3d4-e5f6-7890-abcd-ef1234567802', 'e1b2c3d4-e5f6-7890-abcd-ef1234567802', 'John Smith',    '+8801712345679', 'Cardiology',      'a1b2c3d4-e5f6-7890-abcd-ef1234567802', '2026-08-11', '14:00', 'Chest pain and shortness of breath', 'LAB_REQUESTED', true),
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567803', 'APT-2026-003', 'd1b2c3d4-e5f6-7890-abcd-ef1234567803', NULL, 'Sarah Wilson', '+8801712345680', 'Dermatology',     'a1b2c3d4-e5f6-7890-abcd-ef1234567805', '2026-08-12', '11:00', 'Skin rash on arms', 'PENDING', false),
+  ('i1b2c3d4-e5f6-7890-abcd-ef1234567804', 'APT-2026-004', 'd1b2c3d4-e5f6-7890-abcd-ef1234567801', 'e1b2c3d4-e5f6-7890-abcd-ef1234567801', 'Demo Patient',  '+8801712345678', 'General Medicine', 'a1b2c3d4-e5f6-7890-abcd-ef1234567801', '2026-08-14', '09:00', 'Follow-up checkup', 'COMPLETED', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
