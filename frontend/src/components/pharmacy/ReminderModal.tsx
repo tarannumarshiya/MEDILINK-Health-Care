@@ -51,6 +51,15 @@ export default function ReminderModal({ open, onClose, medicine }: Props) {
         }),
       });
 
+      if (res.status === 401) {
+        alert("You must be logged in to create a reminder.");
+        return;
+      }
+      if (res.status === 403) {
+        alert("You can only create reminders for your own registered phone number.");
+        return;
+      }
+
       const data: { success: boolean; error?: string } = await res.json();
 
       if (!res.ok || !data.success) {

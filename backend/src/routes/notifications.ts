@@ -37,7 +37,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     // - If user_id is provided and the caller is a patient, only allow self.
     // - If user_id is not provided, default to the caller's own id.
     let targetUserId: string;
-    const isStaff = profile?.role && NOTIFICATION_ADMIN_ROLES.includes(profile.role);
+    const isStaff = profile?.role && NOTIFICATION_ADMIN_ROLES.includes(profile.role as any);
 
     if (user_id) {
       if (!isStaff && user_id !== user.id) {
