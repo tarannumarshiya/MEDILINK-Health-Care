@@ -71,6 +71,12 @@ async function runMockPayment(opts: PayOptions): Promise<void> {
 
 // ─── Live flow (Razorpay Checkout SDK) ────────────────────────────────────────
 async function runLivePayment(opts: PayOptions): Promise<void> {
+  // Check if Razorpay SDK is loaded
+  if (typeof window === "undefined" || !(window as any).Razorpay) {
+    opts.onFailure?.({ success: false, error: "Razorpay SDK not loaded. Please refresh the page and try again." });
+    return;
+  }
+
   // 1. Create an order on our server (which calls Razorpay Orders API)
   const orderRes = await apiFetch("/api/payment/create-order", {
     method:  "POST",
@@ -147,8 +153,8 @@ export async function initiatePayment(opts: PayOptions): Promise<void> {
     // Read actual payment mode from backend
     const res = await apiFetch("/api/payment/public-settings");
     if (res.ok) {
-      const { paymentMode } = await res.json();
-      if (paymentMode === "razorpay") {
+      const { paymentMode, demoMode } = await res.json();
+      if (paymentMode === "razorpay" && !demoMode) {
         await runLivePayment(opts);
         return;
       }

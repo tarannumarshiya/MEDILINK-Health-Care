@@ -53,9 +53,15 @@ async function paymentAlreadyRecorded(razorpayPaymentId: string | null | undefin
 /*                              Settings endpoints                             */
 /* -------------------------------------------------------------------------- */
 
-// Public — returns only the non-secret Razorpay key id.
+// Public — returns only the non-secret Razorpay key id + mode info.
 router.get("/public-settings", (_req: Request, res: Response) => {
-  res.json({ success: true, RAZORPAY_KEY_ID: config.razorpayKeyId, paymentMode: config.paymentMode });
+  res.json({
+    success: true,
+    RAZORPAY_KEY_ID: config.razorpayKeyId,
+    paymentMode: config.paymentMode,
+    demoMode: config.demoMode,
+    isConfigured: Boolean(config.razorpayKeyId && config.razorpayKeySecret),
+  });
 });
 
 // Super Admin only — never returns the secret itself.

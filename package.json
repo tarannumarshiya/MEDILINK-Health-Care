@@ -1,0 +1,23 @@
+{
+  "name": "medilink-healthcare",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MEDILINK Healthcare — root workspace",
+  "scripts": {
+    "install:all": "cd backend && npm ci && cd ../frontend && npm ci",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "typecheck:backend": "cd backend && npx tsc --noEmit",
+    "typecheck:frontend": "cd frontend && npx tsc --noEmit",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "test:security": "cd backend && npm run test:security",
+    "test": "npm run test:security",
+    "audit": "cd backend && npm audit --audit-level moderate && cd ../frontend && npm audit --audit-level moderate",
+    "reset-db": "cd supabase && pwsh -File reset-db.ps1",
+    "reset-db:bash": "cd supabase && bash reset-db.sh"
+  }
+}

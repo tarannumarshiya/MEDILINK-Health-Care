@@ -7,7 +7,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "test:security": "node --require ts-node/register test/security.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",
@@ -22,8 +24,11 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.3",
     "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
+    "ts-node": "^10.9.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0",
     "@types/compression": "^1.7.5"
   }
 }

@@ -16,5 +16,6 @@ services:
       # - RAZORPAY_KEY_ID
       # - RAZORPAY_KEY_SECRET
       - key: CORS_ORIGINS
-        # Update this with your frontend's deployed URL once you deploy it
-        value: http://localhost:3000
+        # Comma-separated list of allowed frontend origins.
+        # Update with your actual Vercel frontend URL before deploying.
+        value: http://localhost:3000,https://your-app.vercel.app

@@ -41,3 +41,27 @@ export function createRequestClient(req: Request): SupabaseClient {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Injectable seams (used ONLY by the automated security test suite).         */
+/*  In production these resolve to the real Supabase clients above.            */
+/* -------------------------------------------------------------------------- */
+
+let serviceOverride: SupabaseClient | null = null;
+let requestFactoryOverride: ((req: Request) => SupabaseClient) | null = null;
+
+export function getServiceClient(): SupabaseClient {
+  return serviceOverride ?? serviceClient;
+}
+
+export function resolveRequestClient(req: Request): SupabaseClient {
+  return requestFactoryOverride ? requestFactoryOverride(req) : createRequestClient(req);
+}
+
+export function __setServiceOverrideForTests(client: SupabaseClient | null) {
+  serviceOverride = client;
+}
+
+export function __setRequestFactoryForTests(factory: ((req: Request) => SupabaseClient) | null) {
+  requestFactoryOverride = factory;
+}

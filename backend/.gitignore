@@ -1,0 +1,9 @@
+# Backend gitignore
+
+# Environment files (real values only - never track actual secrets)
+.env
+.env.local
+.env.*.local
+
+# Secrets (was tracked with real Razorpay keys - removed per security audit)
+src/lib/settings.json

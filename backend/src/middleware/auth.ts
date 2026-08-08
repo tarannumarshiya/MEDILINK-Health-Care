@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { createRequestClient } from "../lib/supabase";
+import { resolveRequestClient } from "../lib/supabase";
 
 /**
  * Attaches `req.user` and `req.profile` from the Supabase session token.
@@ -14,7 +14,7 @@ export async function requireAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const supabase = createRequestClient(req);
+  const supabase = resolveRequestClient(req);
   const {
     data: { user },
     error,

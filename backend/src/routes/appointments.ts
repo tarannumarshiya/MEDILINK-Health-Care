@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { createRequestClient, serviceClient } from "../lib/supabase";
+import { getServiceClient } from "../lib/supabase";
 import { requireAuth } from "../middleware/auth";
 import {
   generateAppointmentCode,
@@ -41,9 +41,12 @@ router.post("/create", async (req: Request, res: Response) => {
     }
 
     const appointmentCode = generateAppointmentCode();
+    // Verification code: last 4 digits of phone number for identity confirmation.
+    // This is the minimum knowledge factor required to track an appointment.
+    const verificationCode = phone.slice(-4);
 
     // Resolve Department ID
-    const { data: deptRow } = await serviceClient
+    const { data: deptRow } = await getServiceClient()
       .from("departments")
       .select("id")
       .ilike("name", department)
@@ -58,7 +61,7 @@ router.post("/create", async (req: Request, res: Response) => {
       orFilter += `,email.eq.${email}`;
     }
 
-    const { data: existingPatient } = await serviceClient
+    const { data: existingPatient } = await getServiceClient()
       .from("patients")
       .select("id, patient_code, full_name, profile_id")
       .or(orFilter)
@@ -68,7 +71,7 @@ router.post("/create", async (req: Request, res: Response) => {
 
     if (!patient) {
       const { data: createdPatient, error: patientError } =
-        await serviceClient
+        await getServiceClient()
           .from("patients")
           .insert({
             patient_code: generatePatientCode(),
@@ -96,10 +99,11 @@ router.post("/create", async (req: Request, res: Response) => {
     }
 
     const { data: appointment, error: appointmentError } =
-      await serviceClient
+      await getServiceClient()
         .from("appointments")
         .insert({
           appointment_code: appointmentCode,
+          verification_code: verificationCode,
           patient_id: patient.id,
           patient_name: full_name,
           patient_phone: phone,
@@ -132,7 +136,7 @@ router.post("/create", async (req: Request, res: Response) => {
         } catch (e) {}
       }
       
-      await serviceClient.from("telemedicine_sessions").insert({
+      await getServiceClient().from("telemedicine_sessions").insert({
         appointment_id: appointment.id,
         patient_id: patient.id,
         scheduled_at,
@@ -166,17 +170,25 @@ router.post("/create", async (req: Request, res: Response) => {
 router.post("/track", async (req: Request, res: Response) => {
   try {
     const searchValue = String(req.body.search ?? "").trim();
+    const verificationCode = String(req.body.verification_code ?? "").trim();
 
     if (!searchValue) {
       return void res.status(400).json({
-        error:
-          "Appointment reference, patient ID or phone number is required",
+        error: "Appointment reference is required",
       });
     }
 
-    const { data: appointment, error } = await serviceClient
+    if (!verificationCode) {
+      return void res.status(400).json({
+        error: "Verification code is required for identity confirmation",
+      });
+    }
+
+    // Only allow lookup by appointment_code — never by phone or email
+    // which would enable enumeration of other patients' records.
+    const { data: appointment, error } = await getServiceClient()
       .from("appointments")
-      .select("appointment_code, department, preferred_date, status, created_at")
+      .select("appointment_code, department, preferred_date, status, created_at, verification_code")
       .eq("appointment_code", searchValue)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -190,6 +202,14 @@ router.post("/track", async (req: Request, res: Response) => {
       // Generic not-found so we never reveal whether another user's record exists.
       return void res.status(404).json({
         error: "No appointment found for the given reference",
+      });
+    }
+
+    // Verify the caller knows the verification code (PIN or last-4 of phone).
+    // This prevents enumeration via appointment code alone.
+    if (appointment.verification_code !== verificationCode) {
+      return void res.status(403).json({
+        error: "Invalid verification code",
       });
     }
 
@@ -227,15 +247,15 @@ const STAFF_ROLES_FOR_CONSENT = STAFF_ROLES.filter(
 router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user as { id: string };
-    const profile = (req as any).profile as { role?: string; id: string };
+    const profile = (req as any).profile as { role?: string; id: string; is_active?: boolean; employee_id?: string };
     const id = String(req.params.id);
-    const { accept } = req.body;
+    const { accept, staff_pin } = req.body;
 
     if (accept === undefined || accept === null) {
       return void res.status(400).json({ error: "accept field is required (true/false)" });
     }
 
-    const { data: appointment, error: appointmentError } = await serviceClient
+    const { data: appointment, error: appointmentError } = await getServiceClient()
       .from("appointments")
       .select("id, status, lab_required, patient_id, patient_phone")
       .eq("id", id)
@@ -250,10 +270,31 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
     }
 
     // Ownership check: patient can only consent to their own appointment.
-    const isStaffRole = STAFF_ROLES_FOR_CONSENT.includes((profile.role ?? "") as any);
+    if (!profile) {
+      return void res.status(403).json({ error: "Forbidden" });
+    }
+    const isStaffRole = (STAFF_ROLES_FOR_CONSENT as string[]).includes(profile.role ?? "");
+
+    // Staff acting on a patient's behalf must have an active account AND
+    // provide a staff PIN (last 4 digits of their employee_id) for audit trail.
+    if (isStaffRole) {
+      if (profile.is_active === false) {
+        return void res.status(403).json({ error: "Forbidden" });
+      }
+      // Staff must confirm identity with their PIN.
+      // The PIN is the last 4 characters of their employee_id.
+      const expectedPin = profile.employee_id ? profile.employee_id.slice(-4) : null;
+      if (!staff_pin) {
+        return void res.status(400).json({ error: "Staff PIN is required for consent actions" });
+      }
+      if (expectedPin && staff_pin !== expectedPin) {
+        return void res.status(403).json({ error: "Invalid staff PIN" });
+      }
+    }
+
     if (!isStaffRole) {
       // Verify the authenticated user owns this appointment via their patient record.
-      const { data: ownedPatient } = await serviceClient
+      const { data: ownedPatient } = await getServiceClient()
         .from("patients")
         .select("id")
         .eq("profile_id", user.id)
@@ -267,6 +308,8 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
     }
 
     // Record the consent action in an audit-friendly way.
+    // This is a *trial / simulated* consent — the flag is persisted so the
+    // record can never be mistaken for a legally-binding consent.
     const consentRecord = {
       appointment_id: id,
       patient_id: appointment.patient_id,
@@ -274,6 +317,7 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
       consented_by: user.id,
       consented_by_role: profile.role,
       consented_at: new Date().toISOString(),
+      simulated: true,
     };
 
     if (accept) {
@@ -281,7 +325,7 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
         ? "LAB_REQUESTED"
         : "PRESCRIPTION_READY";
 
-      const { error: updateError } = await serviceClient
+      const { error: updateError } = await getServiceClient()
         .from("appointments")
         .update({
           status: nextStatus,
@@ -293,7 +337,7 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
         return void res.status(500).json({ error: updateError.message });
       }
     } else {
-      await serviceClient
+      await getServiceClient()
         .from("appointments")
         .update({
           status: "COMPLETED",
@@ -302,21 +346,21 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
         .eq("id", id);
 
       // Cancel lab tests
-      await serviceClient
+      await getServiceClient()
         .from("lab_tests")
         .update({ status: "CANCELLED" })
         .eq("appointment_id", id)
         .eq("status", "PENDING");
 
       // Cancel prescriptions
-      await serviceClient
+      await getServiceClient()
         .from("prescriptions")
         .update({ status: "CANCELLED" })
         .eq("appointment_id", id);
 
       // Delete pending lab tests and prescriptions
-      await serviceClient.from("lab_tests").delete().eq("appointment_id", id);
-      await serviceClient.from("prescriptions").delete().eq("appointment_id", id);
+      await getServiceClient().from("lab_tests").delete().eq("appointment_id", id);
+      await getServiceClient().from("prescriptions").delete().eq("appointment_id", id);
 
       // Generate consultation-only invoice
       try {
@@ -327,7 +371,7 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
     }
 
     // Audit log entry
-    await serviceClient.from("audit_logs").insert({
+    await getServiceClient().from("audit_logs").insert({
       action: "CONSENT_ACTION",
       entity_type: "appointment",
       entity_id: id,
@@ -335,7 +379,7 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
       details: consentRecord,
     });
 
-    res.json({ success: true });
+    res.json({ success: true, consent: { simulated: true, accepted: Boolean(accept) } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error while submitting consent" });
