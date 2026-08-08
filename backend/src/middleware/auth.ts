@@ -49,7 +49,13 @@ export async function requireAuth(
 export function requireRole(allowedRoles: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const profile = (req as any).profile;
-    if (!profile || !profile.is_active || !allowedRoles.includes(profile.role)) {
+    if (!profile || !profile.is_active) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    
+    // SUPER_ADMIN implicitly has access to all role-protected routes
+    if (profile.role !== "SUPER_ADMIN" && !allowedRoles.includes(profile.role)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

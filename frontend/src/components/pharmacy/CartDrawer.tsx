@@ -61,7 +61,7 @@ export default function CartDrawer() {
     setSavingReminder(true);
 
     try {
-      await Promise.all(
+      const results = await Promise.all(
         cart.map((item) =>
           apiFetch("/api/reminders", {
             method: "POST",
@@ -76,12 +76,26 @@ export default function CartDrawer() {
         )
       );
 
+      for (const res of results) {
+        if (!res.ok) {
+          if (res.status === 401) throw new Error("401");
+          if (res.status === 403) throw new Error("403");
+          throw new Error("API Error");
+        }
+      }
+
       alert("Monthly reminders enabled successfully.");
       clearCart();
       setOrderPlaced(false);
       setCartOpen(false);
-    } catch {
-      alert("Failed to save reminders. Check backend server.");
+    } catch (err: any) {
+      if (err.message === "401") {
+        alert("You must be logged in to save reminders.");
+      } else if (err.message === "403") {
+        alert("You can only create reminders for your own registered phone number.");
+      } else {
+        alert("Failed to save reminders. Check backend server.");
+      }
     } finally {
       setSavingReminder(false);
     }

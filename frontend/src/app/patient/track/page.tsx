@@ -98,31 +98,7 @@ export default function PatientTrackPage() {
     }
   }
 
-  async function handleConsent(appointmentId: string, accept: boolean) {
-    if (!confirm(`Are you sure you want to ${accept ? "accept" : "reject"} the prescribed lab tests and medicines?`)) return;
 
-    try {
-      const res = await fetch(`/api/appointments/${appointmentId}/consent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accept })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Failed to submit consent");
-        return;
-      }
-      
-      // Update local state to reflect change (e.g. tracking again or updating status)
-      setAppointments(prev => prev.map(a => 
-        a.id === appointmentId 
-          ? { ...a, status: accept ? (a.lab_required ? "LAB_REQUESTED" : "PRESCRIPTION_READY") : "COMPLETED" } 
-          : a
-      ));
-    } catch {
-      alert("Something went wrong");
-    }
-  }
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -139,8 +115,7 @@ export default function PatientTrackPage() {
           </h1>
 
           <p className="mt-4 max-w-3xl text-slate-600">
-            Enter your Patient ID, Appointment ID, phone number, or email to
-            view your appointment status. No login required.
+            Enter your Appointment ID to view your appointment status. No login required.
           </p>
         </div>
 
@@ -151,9 +126,9 @@ export default function PatientTrackPage() {
           <div className="grid gap-4 md:grid-cols-[1fr_auto]">
             <input
               id="track-search"
-              aria-label="Search by Patient ID, Appointment ID, Phone, or Email"
+              aria-label="Search by Appointment ID"
               className="rounded-2xl border border-slate-300 p-4 outline-none focus:border-teal-500"
-              placeholder="PAT-2026-123456 / APT-2026-123456 / Phone / Email"
+              placeholder="APT-2026-123456"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               required
@@ -352,24 +327,16 @@ export default function PatientTrackPage() {
                       Doctor's Recommendations Pending Approval
                     </h3>
                     <p className="mt-2 text-amber-800">
-                      The doctor has prescribed {appointment.lab_required ? "lab tests" : ""}
-                      {appointment.lab_required && appointment.prescription_text ? " and " : ""}
-                      {appointment.prescription_text ? "medicines" : ""}. 
-                      Would you like to proceed with our hospital's facilities for these services?
+                      The doctor has provided recommendations for your treatment. 
+                      For your privacy and security, please log in to your Patient Dashboard to review and securely consent to these services.
                     </p>
-                    <div className="mt-5 flex flex-wrap gap-4">
-                      <button
-                        onClick={() => handleConsent(appointment.id, true)}
-                        className="rounded-2xl bg-amber-600 px-6 py-3 font-black text-white hover:bg-amber-700"
+                    <div className="mt-5">
+                      <Link
+                        href="/patient/login"
+                        className="inline-block rounded-2xl bg-amber-600 px-6 py-3 font-black text-white hover:bg-amber-700"
                       >
-                        Accept & Proceed
-                      </button>
-                      <button
-                        onClick={() => handleConsent(appointment.id, false)}
-                        className="rounded-2xl border-2 border-amber-600 px-6 py-3 font-black text-amber-700 hover:bg-amber-100"
-                      >
-                        Reject Services
-                      </button>
+                        Log In to Consent
+                      </Link>
                     </div>
                   </div>
                 )}

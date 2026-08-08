@@ -177,9 +177,7 @@ router.post("/track", async (req: Request, res: Response) => {
     const { data: appointment, error } = await serviceClient
       .from("appointments")
       .select("appointment_code, department, preferred_date, status, created_at")
-      .or(
-        `appointment_code.eq.${searchValue},patient_phone.eq.${searchValue},patient_email.eq.${searchValue}`
-      )
+      .eq("appointment_code", searchValue)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -252,7 +250,7 @@ router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => 
     }
 
     // Ownership check: patient can only consent to their own appointment.
-    const isStaffRole = STAFF_ROLES_FOR_CONSENT.includes(profile.role ?? "");
+    const isStaffRole = STAFF_ROLES_FOR_CONSENT.includes((profile.role ?? "") as any);
     if (!isStaffRole) {
       // Verify the authenticated user owns this appointment via their patient record.
       const { data: ownedPatient } = await serviceClient
