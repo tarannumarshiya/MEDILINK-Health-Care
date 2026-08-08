@@ -4,9 +4,6 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "env": {
-    "EXPRESS_BACKEND_URL": "@express-backend-url"
-  },
   "rewrites": [
     {
       "source": "/api/:path*",
