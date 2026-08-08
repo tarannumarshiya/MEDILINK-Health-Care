@@ -1,5 +1,5 @@
 "use client";
-
+import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { apiFetch } from "@/lib/apiFetch";
 import { QrCode, CheckCircle2, RefreshCw, X, Clock } from "lucide-react";
