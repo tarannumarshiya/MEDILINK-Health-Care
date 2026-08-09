@@ -106,3 +106,32 @@ BEGIN
                     'PAYMENT', 'EMERGENCY', 'SYSTEM', 'CONSENT'));
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- ============================================================================
+-- 7. STORAGE SETUP — set up lab-reports bucket and policies
+-- ============================================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('lab-reports', 'lab-reports', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Policies for lab-reports bucket objects
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+  CREATE POLICY "Public Access" ON storage.objects
+    FOR SELECT USING (bucket_id = 'lab-reports');
+
+  DROP POLICY IF EXISTS "Staff can upload reports" ON storage.objects;
+  CREATE POLICY "Staff can upload reports" ON storage.objects
+    FOR INSERT WITH CHECK (
+      bucket_id = 'lab-reports' AND
+      EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role != 'PATIENT')
+    );
+
+  DROP POLICY IF EXISTS "Staff can delete reports" ON storage.objects;
+  CREATE POLICY "Staff can delete reports" ON storage.objects
+    FOR DELETE USING (
+      bucket_id = 'lab-reports' AND
+      EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role != 'PATIENT')
+    );
+END $$;

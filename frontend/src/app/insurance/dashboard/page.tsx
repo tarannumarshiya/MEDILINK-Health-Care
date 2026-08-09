@@ -45,9 +45,8 @@ const tabs: TabItem[] = [
   { label: "Tracking",  value: "tracking",   icon: <MapPin        className="h-[18px] w-[18px]" /> },
 ];
 
-function Empty({ text }: { text: string }) {
-  return <p className="rounded-2xl bg-slate-50 p-8 text-center text-sm text-slate-400">{text}</p>;
-}
+import { EmptyState } from "@/components/dashboard/EmptyState";
+import { ErrorState } from "@/components/dashboard/ErrorState";
 
 export default function InsuranceDashboardPage() {
   const [activeTab, setActiveTab]     = useState<Tab>("claims");
@@ -167,7 +166,7 @@ export default function InsuranceDashboardPage() {
       liveSummary={[
         { label: "Pending Claims", value: pendingClaims },
         { label: "Approved",       value: approvedClaims },
-        { label: "Total Settled",  value: `₹${totalSettled.toLocaleString()}` },
+        { label: "Total Settled",  value: `৳${totalSettled.toLocaleString()}` },
         { label: "Policies",       value: policies.length },
       ]}
     >
@@ -200,7 +199,7 @@ export default function InsuranceDashboardPage() {
                         <p className="text-sm font-bold text-slate-500">
                           Policy: <span className="font-black text-teal-700">{policyNo}</span>
                           {provider && <span className="ml-2 text-slate-400">• {provider}</span>}
-                          <span className="ml-2">• Amount: ₹{claim.amount.toLocaleString()}</span>
+                          <span className="ml-2">• Amount: ৳{claim.amount.toLocaleString()}</span>
                         </p>
                         <p className="text-xs text-slate-400">{new Date(claim.created_at).toLocaleDateString()}</p>
                       </div>
@@ -210,12 +209,12 @@ export default function InsuranceDashboardPage() {
                       <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">{claim.decision_reason}</p>
                     )}
                     {claim.settled_amount != null && (
-                      <p className="mt-2 text-sm font-black text-emerald-700">Settled: ₹{claim.settled_amount.toLocaleString()}</p>
+                      <p className="mt-2 text-sm font-black text-emerald-700">Settled: ৳{claim.settled_amount.toLocaleString()}</p>
                     )}
                   </div>
                 );
               })}
-              {claims.length === 0 && <Empty text="No claims found." />}
+              {claims.length === 0 && <EmptyState description="No insurance claims have been submitted yet." />}
             </div>
           </Panel>
         )}
@@ -249,7 +248,7 @@ export default function InsuranceDashboardPage() {
                           <div>
                             <h3 className="text-xl font-black text-slate-950">{patientName}</h3>
                             <p className="text-sm font-bold text-slate-500">
-                              Requested Claim Amount: <span className="text-slate-900 font-extrabold">₹{claim.amount.toLocaleString()}</span>
+                              Requested Claim Amount: <span className="text-slate-900 font-extrabold">৳{claim.amount.toLocaleString()}</span>
                             </p>
                           </div>
                           <StatusBadge status="PENDING" />
@@ -280,7 +279,7 @@ export default function InsuranceDashboardPage() {
                             />
                           </div>
                           <div>
-                            <label className="text-xs font-black uppercase tracking-widest text-slate-500">Settlement Amount (₹)</label>
+                            <label className="text-xs font-black uppercase tracking-widest text-slate-500">Settlement Amount (৳)</label>
                             <input
                               type="number"
                               min="0"
@@ -326,7 +325,7 @@ export default function InsuranceDashboardPage() {
                     <th className="px-5 py-4">Patient</th>
                     <th className="px-5 py-4">Policy No.</th>
                     <th className="px-5 py-4">Provider</th>
-                    <th className="px-5 py-4">Coverage (₹)</th>
+                    <th className="px-5 py-4">Coverage (৳)</th>
                     <th className="px-5 py-4">Valid Until</th>
                     <th className="px-5 py-4">Status</th>
                   </tr>
@@ -337,7 +336,7 @@ export default function InsuranceDashboardPage() {
                       <td className="px-5 py-4 font-black text-slate-900">{pol.patient_name ?? "—"}</td>
                       <td className="px-5 py-4 font-bold text-teal-700">{pol.policy_no}</td>
                       <td className="px-5 py-4 text-slate-600">{pol.provider}</td>
-                      <td className="px-5 py-4 font-bold text-slate-900">₹{pol.coverage_amount.toLocaleString()}</td>
+                      <td className="px-5 py-4 font-bold text-slate-900">৳{pol.coverage_amount.toLocaleString()}</td>
                       <td className="px-5 py-4 text-slate-600">{pol.valid_until}</td>
                       <td className="px-5 py-4">
                         <StatusBadge status={new Date(pol.valid_until) > new Date() ? "ACTIVE" : "EXPIRED"} />
@@ -346,7 +345,7 @@ export default function InsuranceDashboardPage() {
                   ))}
                 </tbody>
               </table>
-              {policies.length === 0 && <Empty text="No policies found." />}
+              {policies.length === 0 && <EmptyState description="No active insurance policies are registered in the system." />}
             </div>
           </Panel>
         )}
@@ -379,7 +378,7 @@ export default function InsuranceDashboardPage() {
                   <Info label="Patient"     value={coverageResult.patient_name ?? "—"} />
                   <Info label="Policy No."  value={coverageResult.policy_no} />
                   <Info label="Provider"    value={coverageResult.provider} />
-                  <Info label="Coverage"    value={`₹${coverageResult.coverage_amount.toLocaleString()}`} />
+                  <Info label="Coverage"    value={`৳${coverageResult.coverage_amount.toLocaleString()}`} />
                   <Info label="Valid Until" value={coverageResult.valid_until} />
                   <Info label="Status"      value={new Date(coverageResult.valid_until) > new Date() ? "ACTIVE" : "EXPIRED"} />
                 </div>
@@ -401,7 +400,7 @@ export default function InsuranceDashboardPage() {
                     <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                       <div>
                         <h3 className="font-black text-slate-950">{claim.patient_name ?? "—"}</h3>
-                        <p className="text-sm text-slate-500">₹{claim.amount.toLocaleString()} • {new Date(claim.created_at).toLocaleDateString()}</p>
+                        <p className="text-sm text-slate-500">৳{claim.amount.toLocaleString()} • {new Date(claim.created_at).toLocaleDateString()}</p>
                       </div>
                       <StatusBadge status={claim.status} />
                     </div>
@@ -426,7 +425,7 @@ export default function InsuranceDashboardPage() {
                   </div>
                 );
               })}
-              {claims.length === 0 && <Empty text="No claims to track." />}
+              {claims.length === 0 && <EmptyState description="No claims are currently available for tracking." />}
             </div>
           </Panel>
         )}

@@ -89,7 +89,7 @@ export const mockPatientNotifications: Notification[] = [
   { id: "notif-001", user_id: "pat-001", title: "Appointment Confirmed", body: "Your appointment with General Medicine on June 15, 2026 at 10:00 AM has been approved.", is_read: false, created_at: "2026-06-10T08:15:00Z" },
   { id: "notif-002", user_id: "pat-001", title: "Lab Report Ready", body: "Your Blood Glucose & HbA1c report is ready for download.", is_read: false, created_at: "2026-06-09T16:00:00Z" },
   { id: "notif-003", user_id: "pat-001", title: "Prescription Dispensed", body: "Your prescription RX-001 has been dispensed. Pick up from pharmacy counter 3.", is_read: true, created_at: "2026-05-20T14:00:00Z" },
-  { id: "notif-004", user_id: "pat-001", title: "Insurance Claim Settled", body: "Claim CLM-001 for ₹2,500 has been settled. ₹2,100 covered by insurance.", is_read: true, created_at: "2026-05-22T10:00:00Z" },
+  { id: "notif-004", user_id: "pat-001", title: "Insurance Claim Settled", body: "Claim CLM-001 for ৳2,500 has been settled. ৳2,100 covered by insurance.", is_read: true, created_at: "2026-05-22T10:00:00Z" },
   { id: "notif-005", user_id: "pat-001", title: "Appointment Rejected", body: "Your Neurology appointment request for March 15 was not approved. Please reschedule.", is_read: true, created_at: "2026-03-13T09:00:00Z" },
   { id: "notif-006", user_id: "pat-001", title: "Upcoming Video Consultation", body: "You have a teleconsultation scheduled with Dr. Farid Hossain on June 18, 2026 at 3:00 PM.", is_read: false, created_at: "2026-06-08T10:00:00Z" },
 ];

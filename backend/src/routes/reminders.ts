@@ -82,19 +82,11 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 /*      reminder is ownership-linked to that patient so it can be managed      */
 /*      through the authenticated GET/PUT/DELETE endpoints.                    */
 /* -------------------------------------------------------------------------- */
-router.post("/", requireAuth, async (req: Request, res: Response) => {
+router.post("/", async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user as { id: string };
-
-    // Get the authenticated patient's phone number
-    const { data: patient, error: patientError } = await getServiceClient()
-      .from("patients")
-      .select("phone")
-      .eq("profile_id", user.id)
-      .maybeSingle();
-
-    if (patientError) return res.status(500).json({ success: false, error: patientError.message });
-    if (!patient) return res.status(403).json({ success: false, error: "Patient profile not found" });
+    const authClient = resolveRequestClient(req);
+    const authRes = await authClient.auth.getUser();
+    const user = authRes?.data?.user;
 
     const {
       patient_phone,
@@ -105,11 +97,29 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
       notes,
     } = req.body;
 
-    const phoneToUse = patient_phone ? String(patient_phone).trim() : patient.phone;
+    let profile_id: string | null = null;
+    let phoneToUse = patient_phone ? String(patient_phone).trim() : "";
 
-    // Restrict data to the correct user
-    if (phoneToUse !== patient.phone) {
-      return res.status(403).json({ success: false, error: "Cannot create reminders for other users" });
+    if (user) {
+      // Get the authenticated patient's phone number
+      const { data: patient, error: patientError } = await getServiceClient()
+        .from("patients")
+        .select("phone")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      if (patientError) return res.status(500).json({ success: false, error: patientError.message });
+
+      if (patient) {
+        profile_id = user.id;
+        if (phoneToUse) {
+          if (phoneToUse !== patient.phone) {
+            return res.status(403).json({ success: false, error: "Cannot create reminders for other users" });
+          }
+        } else {
+          phoneToUse = patient.phone;
+        }
+      }
     }
 
     if (!phoneToUse || !medicine_name || !frequency) {
@@ -123,26 +133,6 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     }
 
     const next_reminder_date = getNextReminderDate(frequency, start_date);
-
-    // Ownership link: only ever from the authenticated caller's own profile.
-    // Never derived from the request body.
-    let profile_id: string | null = null;
-    try {
-      const authClient = resolveRequestClient(req);
-      const { data: { user }, error: authError } = await authClient.auth.getUser();
-      if (!authError && user) {
-        const { data: ownedPatient } = await getServiceClient()
-          .from("patients")
-          .select("id")
-          .eq("profile_id", user.id)
-          .maybeSingle();
-        if (ownedPatient) {
-          profile_id = user.id;
-        }
-      }
-    } catch {
-      // Anonymous callers are still allowed to create a reminder.
-    }
 
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")

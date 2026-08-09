@@ -123,13 +123,7 @@ export const TELEMEDICINE_ADMIN_ROLES = [
 ];
 
 export const NOTIFICATION_ADMIN_ROLES = [
-  ROLES.ADMIN,
-  ROLES.SUPER_ADMIN,
-  ROLES.HOSPITAL_ADMIN,
-  ROLES.RECEPTIONIST,
-  ROLES.RECEPTION_ADMIN,
-  ROLES.DOCTOR,
-  ROLES.NURSE,
+  ...STAFF_ROLES,
 ];
 
 // Helper function to check if a user role is in a allowed list

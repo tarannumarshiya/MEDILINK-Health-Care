@@ -3,6 +3,7 @@ import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceForAppointment } from "../lib/billing";
 import { LAB_ROLES } from "../lib/roles";
+import { sendEmail } from "../lib/email";
 
 const router = Router();
 
@@ -172,7 +173,7 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
         .from("appointments").select("patient_id").eq("id", labTest.appointment_id).single();
       if (appt?.patient_id) {
         const { data: patient } = await serviceClient
-          .from("patients").select("profile_id").eq("id", appt.patient_id).single();
+          .from("patients").select("profile_id, full_name, email").eq("id", appt.patient_id).single();
         if (patient?.profile_id) {
           await serviceClient.from("notifications").insert({
             user_id: patient.profile_id,
@@ -182,6 +183,35 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
             entity_id: report.id,
             priority: "NORMAL",
           });
+        }
+        if (patient?.email) {
+          sendEmail({
+            toEmail: patient.email,
+            toName: patient.full_name || undefined,
+            subject: `Lab Report Ready: ${labTest.test_type ?? "General Test"}`,
+            htmlContent: `
+              <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #f0f0f0; border-radius: 12px;">
+                <h2 style="color: #0d7550;">Lab Report Notification</h2>
+                <p>Dear <strong>${patient.full_name || "Patient"}</strong>,</p>
+                <p>We are pleased to inform you that your lab report for <strong>${labTest.test_type ?? "General Test"}</strong> is ready.</p>
+                <p>You can view and download the complete report details, including the PDF, from your patient portal dashboard.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #666; width: 120px;">Test Type:</td>
+                    <td style="padding: 6px 0; font-weight: bold;">${labTest.test_type ?? "General Test"}</td>
+                  </tr>
+                  ${result_summary ? `
+                  <tr>
+                    <td style="padding: 6px 0; color: #666; width: 120px;">Summary:</td>
+                    <td style="padding: 6px 0; font-weight: bold;">${result_summary}</td>
+                  </tr>` : ""}
+                </table>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p>Thank you for choosing Medilink Digital Health Care!</p>
+              </div>
+            `,
+          }).catch((err) => console.error("Brevo email lab report failure:", err));
         }
       }
     }
