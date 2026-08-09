@@ -27,6 +27,9 @@ export const metadata: Metadata = {
   title: "Medilink Health Care — Healthcare, Reimagined",
   description:
     "Premium digital healthcare platform connecting patients, doctors, laboratories and pharmacies.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
