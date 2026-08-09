@@ -4,6 +4,8 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceForAppointment } from "../lib/billing";
 import { LAB_ROLES } from "../lib/roles";
 import { sendEmail } from "../lib/email";
+import { sendWhatsAppLabNotification } from "../lib/whatsapp";
+import { sendSMS } from "../lib/sms";
 
 const router = Router();
 
@@ -173,7 +175,7 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
         .from("appointments").select("patient_id").eq("id", labTest.appointment_id).single();
       if (appt?.patient_id) {
         const { data: patient } = await serviceClient
-          .from("patients").select("profile_id, full_name, email").eq("id", appt.patient_id).single();
+          .from("patients").select("profile_id, full_name, email, phone").eq("id", appt.patient_id).single();
         if (patient?.profile_id) {
           await serviceClient.from("notifications").insert({
             user_id: patient.profile_id,
@@ -183,6 +185,18 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
             entity_id: report.id,
             priority: "NORMAL",
           });
+        }
+        if (patient?.phone) {
+          sendWhatsAppLabNotification({
+            recipientPhone: patient.phone,
+            patientName: patient.full_name || "Patient",
+            testType: labTest.test_type ?? "General Test",
+          }).catch((err) => console.error("WhatsApp lab notification failure:", err));
+
+          sendSMS({
+            recipientPhone: patient.phone,
+            message: `Hello ${patient.full_name || "Patient"}, your lab report for ${labTest.test_type ?? "General Test"} is ready. Check your Medilink patient portal.`,
+          }).catch((err) => console.error("SMS lab notification failure:", err));
         }
         if (patient?.email) {
           sendEmail({

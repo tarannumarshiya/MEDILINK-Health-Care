@@ -8,6 +8,8 @@ import {
 import { generateInvoiceForAppointment } from "../lib/billing";
 import { STAFF_ROLES } from "../lib/roles";
 import { sendEmail } from "../lib/email";
+import { sendWhatsAppAppointmentNotification } from "../lib/whatsapp";
+import { sendSMS } from "../lib/sms";
 
 const router = Router();
 
@@ -177,6 +179,20 @@ router.post("/create", async (req: Request, res: Response) => {
           </div>
         `,
       }).catch((err) => console.error("Brevo email appointment confirm failure:", err));
+    }
+    if (phone) {
+      sendWhatsAppAppointmentNotification({
+        recipientPhone: phone,
+        patientName: full_name,
+        appointmentCode,
+        date: preferred_date,
+        time: preferred_time || "Pending",
+      }).catch((err) => console.error("WhatsApp appointment notification failure:", err));
+
+      sendSMS({
+        recipientPhone: phone,
+        message: `Hello ${full_name}, your Medilink appointment in ${department} is confirmed for ${preferred_date}. Code: ${appointmentCode}`,
+      }).catch((err) => console.error("SMS appointment notification failure:", err));
     }
 
     res.json({
