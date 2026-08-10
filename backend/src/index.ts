@@ -406,7 +406,7 @@ app.get("/", (req, res) => {
 </body>
 </html>`;
 
-  if (req.headers.accept && req.headers.accept.includes("text/html")) {
+  if (req.headers.accept?.includes("text/html")) {
     res.setHeader("Content-Type", "text/html");
     res.send(html);
   } else {
