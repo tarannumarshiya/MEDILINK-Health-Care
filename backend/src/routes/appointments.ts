@@ -56,7 +56,7 @@ router.post("/create", async (req: Request, res: Response) => {
     }
 
     const dateObj = new Date(preferred_date);
-    if (isNaN(dateObj.getTime())) {
+    if (Number.isNaN(dateObj.getTime())) {
       res.status(400).json({ error: "Invalid date format" });
       return;
     }

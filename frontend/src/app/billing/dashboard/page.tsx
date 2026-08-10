@@ -107,6 +107,7 @@ const chargeFields = [
   "medicine_charge",
   "insurance_deduction",
 ];
+const chargeFieldsSet = new Set(chargeFields);
 
 function Empty({ text }: { text: string }) {
   return (
@@ -532,7 +533,7 @@ export default function BillingDashboardPage() {
                       placeholder: "0",
                     },
                   ].map(({ label, key, placeholder }) => {
-                    const isChargeField = chargeFields.includes(key);
+                    const isChargeField = chargeFieldsSet.has(key);
 
                     return (
                       <div key={key}>

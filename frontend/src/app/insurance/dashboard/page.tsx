@@ -46,7 +46,6 @@ const tabs: TabItem[] = [
 ];
 
 import { EmptyState } from "@/components/dashboard/EmptyState";
-import { ErrorState } from "@/components/dashboard/ErrorState";
 
 export default function InsuranceDashboardPage() {
   const [activeTab, setActiveTab]     = useState<Tab>("claims");

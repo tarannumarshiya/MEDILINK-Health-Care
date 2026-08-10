@@ -16,7 +16,7 @@ import TimeSelect from "@/components/public/TimeSelect";
 import {
   BarChart3, User, FileText, Calendar, Pill,
   Beaker, Shield, CreditCard, Video, Bell, Loader2,
-  TrendingUp, Heart, Clock, CheckCircle, Activity, X
+  TrendingUp, Clock, Activity, X
 } from "lucide-react";
 
 type PatientRow = { full_name: string; email: string; phone: string; age: number; patient_code: string; id: string };
@@ -76,11 +76,12 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 const VALID_TABS: Tab[] = ["overview", "profile", "appointments", "prescriptions", "lab", "insurance", "billing", "video", "notifications", "history"];
+const VALID_TABS_SET = new Set<Tab>(VALID_TABS);
 
 function getTabFromURL(): Tab {
   if (typeof window === "undefined") return "overview";
   const p = new URLSearchParams(window.location.search).get("tab") as Tab | null;
-  return p && VALID_TABS.includes(p) ? p : "overview";
+  return p && VALID_TABS_SET.has(p) ? p : "overview";
 }
 
 export default function PatientDashboardPage() {

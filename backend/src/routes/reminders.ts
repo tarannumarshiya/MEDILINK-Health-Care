@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { getServiceClient, resolveRequestClient } from "../lib/supabase";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { STAFF_ROLES } from "../lib/roles";
 
 const router = Router();
@@ -11,7 +11,7 @@ function getNextReminderDate(frequency: string, startDate?: string) {
   let date = new Date();
   if (startDate && startDate.trim()) {
     const parsed = new Date(startDate);
-    if (!isNaN(parsed.getTime())) {
+    if (!Number.isNaN(parsed.getTime())) {
       date = parsed;
     }
   }

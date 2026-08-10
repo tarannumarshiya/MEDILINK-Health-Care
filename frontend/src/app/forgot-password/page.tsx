@@ -71,6 +71,7 @@ export default function UnifiedForgotPasswordPage() {
           {/* Toggle Tab */}
           <div className="mb-8 flex rounded-2xl bg-slate-100 p-1.5">
             <button
+              type="button"
               onClick={() => { setUserType("patient"); setSent(false); setError(""); }}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold transition-all ${userType === "patient" ? "bg-white text-teal-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
@@ -78,6 +79,7 @@ export default function UnifiedForgotPasswordPage() {
               Patient
             </button>
             <button
+              type="button"
               onClick={() => { setUserType("staff"); setSent(false); setError(""); }}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold transition-all ${userType === "staff" ? "bg-white text-teal-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
@@ -97,6 +99,7 @@ export default function UnifiedForgotPasswordPage() {
                   If an account exists for <span className="font-black text-teal-600">{email}</span>, we've sent a password reset link. Check your inbox and spam folder.
                 </p>
                 <button
+                  type="button"
                   onClick={() => { setSent(false); }}
                   className="mt-6 block w-full text-center text-sm font-bold text-teal-600 hover:underline">
                   Try a different email

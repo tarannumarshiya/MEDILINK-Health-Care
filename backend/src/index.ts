@@ -58,9 +58,10 @@ app.use(compression());
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = config.corsOrigins;
 
+const allowedSet = new Set(allowedOrigins);
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+    if (!origin || allowedSet.has(origin)) callback(null, true);
     else callback(new Error(`CORS: origin '${origin}' not allowed`));
   },
   credentials: true,
@@ -68,7 +69,7 @@ app.use(cors({
 
 app.use((req, res, next) => {
   if (req.path === "/api/contact" && req.headers["content-length"]) {
-    const contentLength = parseInt(req.headers["content-length"], 10);
+    const contentLength = Number.parseInt(req.headers["content-length"], 10);
     if (contentLength > 100 * 1024) {
       const err = new Error("request entity too large");
       (err as any).status = 413;

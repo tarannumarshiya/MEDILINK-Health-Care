@@ -48,7 +48,7 @@ router.post("/sos", async (req: Request, res: Response) => {
     let parsedAge = null;
     if (age !== undefined && age !== null && age !== "") {
       parsedAge = Number(age);
-      if (isNaN(parsedAge) || !isFinite(parsedAge) || parsedAge < 0) {
+      if (Number.isNaN(parsedAge) || !Number.isFinite(parsedAge) || parsedAge < 0) {
         res.status(400).json({ error: "Age must be a non-negative number" });
         return;
       }

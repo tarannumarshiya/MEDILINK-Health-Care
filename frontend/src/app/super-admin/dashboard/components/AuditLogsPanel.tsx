@@ -45,6 +45,7 @@ export function AuditLogsPanel({ auditLogs, load }: AuditLogsPanelProps) {
       }
       action={
         <button
+          type="button"
           onClick={() => load(true)}
           className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           aria-label="Refresh audit logs"

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { TELEMEDICINE_ADMIN_ROLES, STAFF_ROLES } from "../lib/roles";
+import { TELEMEDICINE_ADMIN_ROLES } from "../lib/roles";
 
 const router = Router();
 
