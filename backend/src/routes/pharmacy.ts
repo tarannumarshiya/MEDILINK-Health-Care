@@ -199,32 +199,29 @@ router.post("/orders", async (req: Request, res: Response) => {
     } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return void res.status(400).json({ error: "Items are required" });
+      res.status(400).json({ error: "Items are required" });
+      return;
     }
 
     if (!patient_name || !patient_phone) {
-      return void res
-        .status(400)
-        .json({ error: "Patient name and phone number are required" });
+      res.status(400).json({ error: "Patient name and phone number are required" });
+      return;
     }
 
     if (/[<>]/g.test(patient_name)) {
-      return void res
-        .status(400)
-        .json({ error: "Patient name cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Patient name cannot contain HTML or script characters" });
+      return;
     }
 
     const phoneDigits = patient_phone.replace(/\D/g, "");
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-      return void res
-        .status(400)
-        .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+      res.status(400).json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+      return;
     }
 
     if (notes && /[<>]/g.test(notes)) {
-      return void res
-        .status(400)
-        .json({ error: "Notes cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Notes cannot contain HTML or script characters" });
+      return;
     }
 
     // Server-side price calculation: fetch authoritative prices from the
@@ -237,7 +234,8 @@ router.post("/orders", async (req: Request, res: Response) => {
       const quantity = Number(item.quantity) || 0;
 
       if (!medicineName || quantity <= 0) {
-        return void res.status(400).json({ error: `Invalid item: ${medicineName || "unnamed"}` });
+        res.status(400).json({ error: `Invalid item: ${medicineName || "unnamed"}` });
+        return;
       }
 
       // Look up the authoritative price from the medicines table
@@ -248,11 +246,13 @@ router.post("/orders", async (req: Request, res: Response) => {
         .maybeSingle();
 
       if (!medicine || !medicine.is_available) {
-        return void res.status(400).json({ error: `Medicine "${medicineName}" not found or unavailable` });
+        res.status(400).json({ error: `Medicine "${medicineName}" not found or unavailable` });
+        return;
       }
 
       if (medicine.quantity < quantity) {
-        return void res.status(400).json({ error: `Insufficient stock for "${medicineName}". Available: ${medicine.quantity}` });
+        res.status(400).json({ error: `Insufficient stock for "${medicineName}". Available: ${medicine.quantity}` });
+        return;
       }
 
       const unitPrice = Number(medicine.price);

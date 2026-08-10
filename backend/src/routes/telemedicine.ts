@@ -178,10 +178,11 @@ router.get(
           .in("id", profileIds);
 
         if (profileError) {
-          return void res.status(500).json({
+          res.status(500).json({
             success: false,
             error: profileError.message,
           });
+          return;
         }
 
         profiles = (profileData ?? []) as ProfileRow[];
@@ -195,10 +196,11 @@ router.get(
             .in("id", appointmentIds);
 
         if (appointmentError) {
-          return void res.status(500).json({
+          res.status(500).json({
             success: false,
             error: appointmentError.message,
           });
+          return;
         }
 
         appointments = (appointmentData ?? []) as AppointmentRow[];
