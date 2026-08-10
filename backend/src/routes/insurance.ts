@@ -34,7 +34,9 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     const user = (req as any).user;
     const profile = (req as any).profile;
     const { patient_id, policy_id, appointment_id, amount } = req.body;
-    if (!amount) return void res.status(400).json({ error: "amount required" });
+    if (amount === undefined || amount === null || amount === "") {
+      return void res.status(422).json({ error: "amount required" });
+    }
 
     const isStaff = profile?.role && INS_ROLES.includes(profile.role);
 

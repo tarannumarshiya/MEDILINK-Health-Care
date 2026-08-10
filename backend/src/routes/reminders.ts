@@ -8,7 +8,13 @@ const router = Router();
 
 
 function getNextReminderDate(frequency: string, startDate?: string) {
-  const date = startDate ? new Date(startDate) : new Date();
+  let date = new Date();
+  if (startDate && startDate.trim()) {
+    const parsed = new Date(startDate);
+    if (!isNaN(parsed.getTime())) {
+      date = parsed;
+    }
+  }
 
   if (frequency === "daily") {
     date.setDate(date.getDate() + 1);
@@ -41,8 +47,10 @@ router.get("/", async (req: Request, res: Response) => {
 
     // Check session if patientPhone is not explicitly queried
     if (!phoneToQuery) {
+      const authHeader = req.headers.authorization ?? "";
+      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
       const authClient = resolveRequestClient(req);
-      const authRes = await authClient.auth.getUser();
+      const authRes = await authClient.auth.getUser(token || undefined);
       const user = authRes?.data?.user;
       if (user) {
         const { data: patient } = await getServiceClient()
@@ -84,8 +92,10 @@ router.get("/", async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 router.post("/", async (req: Request, res: Response) => {
   try {
+    const authHeader = req.headers.authorization ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
     const authClient = resolveRequestClient(req);
-    const authRes = await authClient.auth.getUser();
+    const authRes = await authClient.auth.getUser(token || undefined);
     const user = authRes?.data?.user;
 
     const {
@@ -138,7 +148,7 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     const phoneDigits = phoneToUse.replace(/\D/g, "");
-    if (phoneDigits.length < 10 || phoneToUse.length > 15 || !/^\+?[0-9]+$/.test(phoneToUse)) {
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       return res.status(400).json({ success: false, error: "Invalid phone number format" });
     }
 
@@ -182,6 +192,9 @@ router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id || req.body.id || req.query.id;
 
     if (!id) {
+      if (!isStaff(profile?.role)) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
       return res.status(400).json({ success: false, error: "Reminder ID is required" });
     }
 
@@ -192,6 +205,9 @@ router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
       .maybeSingle();
 
     if (!existing) {
+      if (!isStaff(profile.role)) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
       return res.status(404).json({ success: false, error: "Reminder not found" });
     }
 
@@ -245,6 +261,9 @@ router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id || req.body.id || req.query.id;
 
     if (!id) {
+      if (!isStaff(profile?.role)) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
       return res.status(400).json({ success: false, error: "Reminder ID is required" });
     }
 
@@ -255,6 +274,9 @@ router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
       .maybeSingle();
 
     if (!existing) {
+      if (!isStaff(profile.role)) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
       return res.status(404).json({ success: false, error: "Reminder not found" });
     }
 

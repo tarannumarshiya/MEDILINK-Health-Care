@@ -357,13 +357,14 @@ router.patch(
       const user = (req as any).user;
       const isPatient = profile?.role === "PATIENT";
 
-      const { session_id, status, recording_url } =
-        req.body as UpdateStatusBody;
+      const sessionId = req.body.session_id || req.body.sessionId;
+      const status = req.body.status;
+      const recordingUrl = req.body.recording_url || req.body.recordingUrl;
 
-      if (!session_id || !status) {
+      if (!sessionId || !status) {
         return void res.status(400).json({
           success: false,
-          error: "session_id and status required",
+          error: "session_id/sessionId and status required",
         });
       }
 
@@ -372,7 +373,7 @@ router.patch(
         const { data: session } = await serviceClient
           .from("telemedicine_sessions")
           .select("patient_id")
-          .eq("id", session_id)
+          .eq("id", sessionId)
           .maybeSingle();
         
         if (!session) {
@@ -420,15 +421,15 @@ router.patch(
         status: normalizedStatus,
       };
 
-      // Only staff can update recording_url
-      if (recording_url && !isPatient) {
-        updates.recording_url = recording_url;
+      // Only staff can update recordingUrl
+      if (recordingUrl && !isPatient) {
+        updates.recording_url = recordingUrl;
       }
 
       const { data, error } = await serviceClient
         .from("telemedicine_sessions")
         .update(updates)
-        .eq("id", session_id)
+        .eq("id", sessionId)
         .select(
           "id,appointment_id,doctor_id,patient_id,scheduled_at,status,recording_url,created_at"
         )

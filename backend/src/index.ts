@@ -5,6 +5,8 @@ import helmet from "helmet";
 import compression from "compression";
 import { config, validateRequiredConfig } from "./lib/config";
 import { apiLimiter, authLimiter, bookingLimiter } from "./middleware/security";
+import swaggerUi from "swagger-ui-express";
+import openapiSpec from "./openapi.json";
 
 import adminRoutes        from "./routes/admin";
 import appointmentRoutes  from "./routes/appointments";
@@ -64,6 +66,17 @@ app.use(cors({
   credentials: true,
 }));
 
+app.use((req, res, next) => {
+  const isContact = (req.originalUrl || req.path || "").startsWith("/api/contact");
+  if (isContact && req.headers["content-length"]) {
+    const contentLength = parseInt(req.headers["content-length"], 10);
+    if (contentLength > 100 * 1024) {
+      return res.status(413).json({ error: "Payload Too Large" });
+    }
+  }
+  next();
+});
+
 app.use(express.json({ limit: "10mb" }));
 app.use((err: any, req: any, res: any, next: any) => {
   if (err instanceof SyntaxError && "status" in err && err.status === 400) {
@@ -75,6 +88,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // ─── Global API rate limit and request timeout ────────────────────────────────
 app.use("/api", requestTimeout(30000), apiLimiter);
+
+// ─── Swagger API Documentation ────────────────────────────────────────────────
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
@@ -112,7 +128,7 @@ app.use("/api/*", (_req, res) => {
 app.use(errorHandler);
 
 // ─── Root — API landing page ──────────────────────────────────────────────────
-app.get("/", (_req, res) => {
+app.get("/", (req, res) => {
   const uptime = process.uptime();
   const h = Math.floor(uptime / 3600);
   const m = Math.floor((uptime % 3600) / 60);
@@ -356,8 +372,21 @@ app.get("/", (_req, res) => {
 </body>
 </html>`;
 
-  res.setHeader("Content-Type", "text/html");
-  res.send(html);
+  const acceptsHtml = req.headers.accept && req.headers.accept.startsWith("text/html") && !req.headers.accept.includes("application/json");
+  if (acceptsHtml) {
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
+  } else {
+    res.json({
+      success: true,
+      name: "Medilink API Server",
+      status: "ok",
+      uptime,
+      uptime_str: uptimeStr,
+      total_endpoints: totalEndpoints,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 app.listen(PORT, () => {
