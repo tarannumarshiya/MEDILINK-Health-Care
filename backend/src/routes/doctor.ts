@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { createRequestClient, serviceClient } from "../lib/supabase";
+import { getServiceClient, resolveRequestClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceCode } from "../lib/ids";
 import { DOCTOR_ROLES } from "../lib/roles";
@@ -18,7 +18,7 @@ router.get("/queue", requireAuth,
   requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
-      const supabase = createRequestClient(req);
+      const supabase = resolveRequestClient(req);
       const user = (req as any).user;
 
       const { data: doctor, error: doctorError } = await supabase
@@ -37,7 +37,7 @@ router.get("/queue", requireAuth,
       // 1. Directly assigned to this doctor (doctor_id = doctor.id)
       // 2. Belong to this doctor's department AND have no doctor assigned yet (doctor_id IS NULL)
       // This way new bookings show up for the right department even before admin assigns a doctor.
-      const { data: appointments, error } = await serviceClient
+      const { data: appointments, error } = await getServiceClient()
         .from("appointments")
         .select(APPT_SELECT)
         .or(`doctor_id.eq.${doctor.id}${department?.id ? `,and(department_id.eq.${department.id},doctor_id.is.null)` : ""}`)
@@ -51,14 +51,14 @@ router.get("/queue", requireAuth,
       const labReports: Record<string, any[]> = {};
 
       if (apptIds.length > 0) {
-        const { data: ltRows } = await serviceClient
+        const { data: ltRows } = await getServiceClient()
           .from("lab_tests")
           .select("id,appointment_id,status,test_type")
           .in("appointment_id", apptIds);
 
         const testIds = (ltRows ?? []).map((t: any) => t.id);
         if (testIds.length > 0) {
-          const { data: repRows } = await serviceClient
+          const { data: repRows } = await getServiceClient()
             .from("lab_reports")
             .select("id,lab_test_id,result_summary,file_url,verified_at")
             .in("lab_test_id", testIds);
@@ -94,10 +94,10 @@ router.patch("/start-consultation", requireAuth,
         return void res.status(400).json({ error: "Appointment ID is required" });
 
       const user = (req as any).user;
-      const { data: doctor } = await serviceClient
+      const { data: doctor } = await getServiceClient()
         .from("doctors").select("id").eq("profile_id", user.id).single();
 
-      const { data: appointment, error } = await serviceClient
+      const { data: appointment, error } = await getServiceClient()
         .from("appointments")
         .update({
           status: "IN_PROGRESS",
@@ -109,7 +109,7 @@ router.patch("/start-consultation", requireAuth,
 
       if (error) return void res.status(500).json({ error: error.message });
 
-      await serviceClient.from("audit_logs").insert({
+      await getServiceClient().from("audit_logs").insert({
         action: "CONSULTATION_STARTED",
         entity: "appointments",
         entity_id: appointmentId,
@@ -128,7 +128,7 @@ router.patch("/start-consultation", requireAuth,
 router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
-      const supabase = createRequestClient(req);
+      const supabase = resolveRequestClient(req);
       const user = (req as any).user;
       const profile = (req as any).profile;
 
@@ -171,13 +171,13 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       if (doctorError || !doctor)
         return void res.status(404).json({ error: "Doctor record not found" });
 
-      const { data: appointment, error: apptError } = await serviceClient
+      const { data: appointment, error: apptError } = await getServiceClient()
         .from("appointments").select("id, patient_id, patient_name").eq("id", appointmentId).single();
       if (apptError || !appointment)
         return void res.status(404).json({ error: "Appointment not found" });
 
       // 1. Save prescription
-      const { data: prescription, error: prescriptionError } = await serviceClient
+      const { data: prescription, error: prescriptionError } = await getServiceClient()
         .from("prescriptions")
         .insert({ appointment_id: appointmentId, doctor_id: doctor.id, prescription_notes: notes, status: "ACTIVE" })
         .select().single();
@@ -186,7 +186,7 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
         return void res.status(500).json({ error: prescriptionError?.message ?? "Prescription creation failed" });
 
       // 2. Save prescription items
-      const { error: itemsError } = await serviceClient
+      const { error: itemsError } = await getServiceClient()
         .from("prescription_items")
         .insert(medicines.map((item) => ({
           prescription_id: prescription.id,
@@ -202,7 +202,7 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       // 3. Update appointment status
       const nextStatus = wantsLab ? "LAB_REQUESTED" : "PRESCRIPTION_READY";
 
-      await serviceClient.from("appointments").update({
+      await getServiceClient().from("appointments").update({
         status: nextStatus,
         prescription_text: notes,
         lab_required: wantsLab,
@@ -212,7 +212,7 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       // 4. If lab requested, create a lab_test record
       if (wantsLab) {
         const testName = labTestName?.trim() || "General Lab Test";
-        await serviceClient.from("lab_tests").insert({
+        await getServiceClient().from("lab_tests").insert({
           appointment_id: appointmentId,
           patient_id: appointment.patient_id,
           doctor_id: doctor.id,
@@ -230,7 +230,7 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       );
       const total = consultationCharge + labCharge + medicineCharge;
 
-      const { data: invoice, error: invoiceError } = await serviceClient
+      const { data: invoice, error: invoiceError } = await getServiceClient()
         .from("invoices")
         .insert({
           invoice_code: generateInvoiceCode(),
@@ -250,7 +250,7 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       }
 
       // 6. Audit log
-      await serviceClient.from("audit_logs").insert({
+      await getServiceClient().from("audit_logs").insert({
         action: "PRESCRIPTION_CREATED",
         entity: "prescriptions",
         entity_id: prescription.id,
@@ -260,13 +260,13 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
 
       // 7. Notify patient
       if (appointment.patient_id) {
-        const { data: patient } = await serviceClient
+        const { data: patient } = await getServiceClient()
           .from("patients").select("profile_id").eq("id", appointment.patient_id).single();
         if (patient?.profile_id) {
           const body = wantsLab
             ? "Your prescription is ready. Lab tests have been requested — please proceed to the lab."
             : "Your prescription is ready. Please proceed to the pharmacy.";
-          await serviceClient.from("notifications").insert({
+          await getServiceClient().from("notifications").insert({
             user_id: patient.profile_id,
             type: wantsLab ? "LAB" : "PRESCRIPTION",
             title: wantsLab ? "Lab Test Requested" : "Prescription Ready",
@@ -293,13 +293,13 @@ router.get("/lab-report", requireAuth, requireRole(DOCTOR_ROLES),
       if (!appointment_id)
         return void res.status(400).json({ error: "appointment_id required" });
 
-      const { data: labTest } = await serviceClient
+      const { data: labTest } = await getServiceClient()
         .from("lab_tests").select("id").eq("appointment_id", String(appointment_id)).maybeSingle();
 
       if (!labTest)
         return void res.json({ success: true, report: null });
 
-      const { data: report } = await serviceClient
+      const { data: report } = await getServiceClient()
         .from("lab_reports").select("*").eq("lab_test_id", labTest.id).maybeSingle();
 
       res.json({ success: true, report: report ?? null });
@@ -317,14 +317,14 @@ router.patch("/complete", requireAuth, requireRole(DOCTOR_ROLES),
       if (!appointmentId)
         return void res.status(400).json({ error: "appointmentId required" });
 
-      const { data, error } = await serviceClient
+      const { data, error } = await getServiceClient()
         .from("appointments")
         .update({ status: "COMPLETED", updated_at: new Date().toISOString() })
         .eq("id", appointmentId).select().single();
 
       if (error) return void res.status(500).json({ error: error.message });
 
-      await serviceClient.from("audit_logs").insert({
+      await getServiceClient().from("audit_logs").insert({
         action: "CONSULTATION_COMPLETED",
         entity: "appointments",
         entity_id: appointmentId,
@@ -347,10 +347,10 @@ router.get("/patient-history", requireAuth, requireRole(DOCTOR_ROLES),
       if (!patientId) return void res.status(400).json({ error: "patient_id required" });
 
       const [appointmentsRes, prescriptionsRes, labTestsRes, recordsRes] = await Promise.all([
-        serviceClient.from("appointments").select("id,appointment_code,department,preferred_date,preferred_time,status,symptoms,prescription_text,lab_report_url,created_at").eq("patient_id", patientId).order("created_at", { ascending: false }),
-        serviceClient.from("prescriptions").select("id,appointment_id,prescription_notes,status,created_at,prescription_items(id,medicine_name,dosage,quantity,instructions)").eq("patient_id", patientId).order("created_at", { ascending: false }),
-        serviceClient.from("lab_tests").select("id,appointment_id,test_type,status,sample_collected_at,created_at").eq("patient_id", patientId).order("created_at", { ascending: false }),
-        serviceClient.from("medical_records").select("id,type,title,notes,file_url,created_at").eq("patient_id", patientId).order("created_at", { ascending: false }),
+        getServiceClient().from("appointments").select("id,appointment_code,department,preferred_date,preferred_time,status,symptoms,prescription_text,lab_report_url,created_at").eq("patient_id", patientId).order("created_at", { ascending: false }),
+        getServiceClient().from("prescriptions").select("id,appointment_id,prescription_notes,status,created_at,prescription_items(id,medicine_name,dosage,quantity,instructions)").eq("patient_id", patientId).order("created_at", { ascending: false }),
+        getServiceClient().from("lab_tests").select("id,appointment_id,test_type,status,sample_collected_at,created_at").eq("patient_id", patientId).order("created_at", { ascending: false }),
+        getServiceClient().from("medical_records").select("id,type,title,notes,file_url,created_at").eq("patient_id", patientId).order("created_at", { ascending: false }),
       ]);
 
       res.json({

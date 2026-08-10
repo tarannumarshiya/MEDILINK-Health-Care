@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient, dbErrorStatus } from "../lib/supabase";
 
 const router = Router();
 
@@ -17,9 +17,21 @@ router.post("/", async (req: Request, res: Response) => {
         .json({ error: "Name, email, subject and message are required" });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Each field must actually be a string — a numeric JSON value would
+    // otherwise crash the regex/length pipelines below and surface a 500.
+    for (const [key, value] of Object.entries({ full_name, email, subject, message })) {
+      if (typeof value !== "string") {
+        return void res.status(400).json({ error: `${key} must be a string` });
+      }
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!emailRegex.test(email)) {
       return void res.status(400).json({ error: "Invalid email format" });
+    }
+
+    if (email.length > 254 || full_name.length > 120 || subject.length > 255 || message.length > 5000) {
+      return void res.status(400).json({ error: "Field exceeds maximum allowed length" });
     }
 
     if (/[<>]/g.test(full_name)) {
@@ -34,19 +46,22 @@ router.post("/", async (req: Request, res: Response) => {
       return void res.status(400).json({ error: "Message cannot contain HTML or script characters" });
     }
 
+    let phoneValue: string | null = null;
     if (phone) {
-      const phoneDigits = phone.replace(/\D/g, "");
+      const phoneStr = String(phone).trim();
+      const phoneDigits = phoneStr.replace(/\D/g, "");
       if (phoneDigits.length < 10 || phoneDigits.length > 15) {
         return void res.status(400).json({ error: "Invalid phone number format" });
       }
+      phoneValue = phoneStr;
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("contact_messages")
       .insert({
         full_name,
         email,
-        phone: phone ?? null,
+        phone: phoneValue,
         subject,
         message,
         status: "NEW",
@@ -55,7 +70,7 @@ router.post("/", async (req: Request, res: Response) => {
       .single();
 
     if (error)
-      return void res.status(500).json({ error: error.message });
+      return void res.status(dbErrorStatus(error)).json({ error: error.message });
 
     res.json({ success: true, contact_message: data });
   } catch {

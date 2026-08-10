@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceCode } from "../lib/ids";
 import { BILLING_ROLES } from "../lib/roles";
@@ -9,7 +9,7 @@ const router = Router();
 // ── GET /api/billing/invoices ─────────────────────────────────────────────────
 router.get("/invoices", requireAuth, requireRole(BILLING_ROLES), async (req: Request, res: Response) => {
   try {
-    const { data: invoices, error } = await serviceClient
+    const { data: invoices, error } = await getServiceClient()
       .from("invoices")
       .select("id,invoice_code,patient_id,appointment_id,patient_name,consultation_charge,lab_charge,medicine_charge,insurance_deduction,total,status,created_at")
       .order("created_at", { ascending: false });
@@ -26,6 +26,10 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
   try {
     const { appointment_id, consultation_charge, lab_charge, medicine_charge, insurance_deduction, patient_name, patient_id } = req.body;
 
+    if (!appointment_id) {
+      return void res.status(400).json({ error: "appointment_id is required" });
+    }
+
     if (
       (consultation_charge !== undefined && (isNaN(Number(consultation_charge)) || Number(consultation_charge) < 0)) ||
       (lab_charge !== undefined && (isNaN(Number(lab_charge)) || Number(lab_charge) < 0)) ||
@@ -39,6 +43,12 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
       return void res.status(400).json({ error: "Patient name cannot contain HTML or script characters" });
     }
 
+    const { data: appointment, error: apptError } = await getServiceClient()
+      .from("appointments").select("id").eq("id", appointment_id).maybeSingle();
+    if (apptError || !appointment) {
+      return void res.status(404).json({ error: "Appointment not found" });
+    }
+
     const total = Math.max(0,
       Number(consultation_charge ?? 0)
       + Number(lab_charge ?? 0)
@@ -46,7 +56,7 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
       - Number(insurance_deduction ?? 0)
     );
 
-    const { data, error } = await serviceClient.from("invoices").insert({
+    const { data, error } = await getServiceClient().from("invoices").insert({
       invoice_code: generateInvoiceCode(),
       patient_id: patient_id ?? null,
       appointment_id,
@@ -61,7 +71,7 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
 
     if (error) return void res.status(500).json({ error: error.message });
 
-    await serviceClient.from("audit_logs").insert({
+    await getServiceClient().from("audit_logs").insert({
       action: "INVOICE_GENERATED",
       entity: "invoices",
       entity_id: data.id,
@@ -85,7 +95,7 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
       return void res.status(400).json({ error: "Payment amount must be a non-negative number" });
     }
 
-    const { data: invoice, error: invErr } = await serviceClient
+    const { data: invoice, error: invErr } = await getServiceClient()
       .from("invoices").select("status, total, invoice_code, appointment_id").eq("id", invoice_id).single();
     if (invErr || !invoice) return void res.status(404).json({ error: "Invoice not found" });
 
@@ -95,12 +105,12 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
     }
 
     // Mark invoice paid
-    const { error: updErr } = await serviceClient
+    const { error: updErr } = await getServiceClient()
       .from("invoices").update({ status: "PAID" }).eq("id", invoice_id);
     if (updErr) return void res.status(500).json({ error: updErr.message });
 
     // Write to payments
-    await serviceClient.from("payments").insert({
+    await getServiceClient().from("payments").insert({
       invoice_id,
       invoice_code: invoice.invoice_code,
       amount: amount ?? invoice.total,
@@ -110,18 +120,18 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
 
     // Update appointment → COMPLETED
     if (invoice.appointment_id) {
-      await serviceClient.from("appointments").update({
+      await getServiceClient().from("appointments").update({
         status: "COMPLETED",
         updated_at: new Date().toISOString(),
       }).eq("id", invoice.appointment_id);
 
       // Notify patient
-      const { data: appt } = await serviceClient
+      const { data: appt } = await getServiceClient()
         .from("appointments").select("patient_id,patient_name").eq("id", invoice.appointment_id).single();
       if (appt?.patient_id) {
-        const { data: patient } = await serviceClient.from("patients").select("profile_id").eq("id", appt.patient_id).single();
+        const { data: patient } = await getServiceClient().from("patients").select("profile_id").eq("id", appt.patient_id).single();
         if (patient?.profile_id) {
-          await serviceClient.from("notifications").insert({
+          await getServiceClient().from("notifications").insert({
             user_id: patient.profile_id,
             type: "BILLING",
             title: "Payment Confirmed",
@@ -133,7 +143,7 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
       }
     }
 
-    await serviceClient.from("audit_logs").insert({
+    await getServiceClient().from("audit_logs").insert({
       action: "INVOICE_PAID",
       entity: "invoices",
       entity_id: invoice_id,
@@ -150,12 +160,12 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
 // ── GET /api/billing/revenue ──────────────────────────────────────────────────
 router.get("/revenue", requireAuth, requireRole(BILLING_ROLES), async (req: Request, res: Response) => {
   try {
-    const { data: invoices } = await serviceClient
+    const { data: invoices } = await getServiceClient()
       .from("invoices").select("id,invoice_code,total,status,consultation_charge,lab_charge,medicine_charge,insurance_deduction,created_at,patient_name")
       .order("created_at", { ascending: false });
 
     // Only count payments that were actually confirmed (SUCCESS or COMPLETED)
-    const { data: payments } = await serviceClient
+    const { data: payments } = await getServiceClient()
       .from("payments").select("amount,status,method,created_at")
       .in("status", ["SUCCESS", "COMPLETED"]);
 
@@ -196,7 +206,7 @@ router.get("/revenue", requireAuth, requireRole(BILLING_ROLES), async (req: Requ
 router.get("/payments", requireAuth, requireRole(BILLING_ROLES), async (req: Request, res: Response) => {
   try {
     // Join invoices to get invoice_code and patient_name alongside payment rows
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("payments")
       .select(`
         id, invoice_id, amount, method, status, created_at,

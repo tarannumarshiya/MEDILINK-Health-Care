@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { TELEMEDICINE_ADMIN_ROLES, STAFF_ROLES } from "../lib/roles";
 
@@ -104,7 +104,7 @@ router.get(
       const user = (req as any).user;
       const isPatient = profile?.role === "PATIENT";
 
-      let query = serviceClient
+      let query = getServiceClient()
         .from("telemedicine_sessions")
         .select(
           "id,appointment_id,doctor_id,patient_id,scheduled_at,status,recording_url,created_at"
@@ -113,7 +113,7 @@ router.get(
 
       // Patients can only see their own sessions (resolve patient_id from profile)
       if (isPatient) {
-        const { data: patientRecord } = await serviceClient
+        const { data: patientRecord } = await getServiceClient()
           .from("patients")
           .select("id")
           .eq("profile_id", user.id)
@@ -170,7 +170,7 @@ router.get(
       let appointments: AppointmentRow[] = [];
 
       if (profileIds.length > 0) {
-        const { data: profileData, error: profileError } = await serviceClient
+        const { data: profileData, error: profileError } = await getServiceClient()
           .from("profiles")
           .select("id,full_name,name,department,specialty_dept")
           .in("id", profileIds);
@@ -187,7 +187,7 @@ router.get(
 
       if (appointmentIds.length > 0) {
         const { data: appointmentData, error: appointmentError } =
-          await serviceClient
+          await getServiceClient()
             .from("appointments")
             .select("id,patient_name,name,department,symptoms,reason,description")
             .in("id", appointmentIds);
@@ -273,7 +273,7 @@ router.get(
 
       // Asynchronously update expired sessions in the database
       if (expiredSessionIds.length > 0) {
-        serviceClient
+        getServiceClient()
           .from("telemedicine_sessions")
           .update({ status: "MISSED" })
           .in("id", expiredSessionIds)
@@ -314,7 +314,7 @@ router.post("/create", requireAuth, requireRole(TELEMEDICINE_ADMIN_ROLES), async
       });
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("telemedicine_sessions")
       .insert({
         appointment_id: appointment_id ?? null,
@@ -370,7 +370,7 @@ router.patch(
 
       // Verify ownership for patients
       if (isPatient) {
-        const { data: session } = await serviceClient
+        const { data: session } = await getServiceClient()
           .from("telemedicine_sessions")
           .select("patient_id")
           .eq("id", sessionId)
@@ -383,7 +383,7 @@ router.patch(
           });
         }
         
-        const { data: patientRecord } = await serviceClient
+        const { data: patientRecord } = await getServiceClient()
           .from("patients")
           .select("id")
           .eq("profile_id", user.id)
@@ -393,6 +393,19 @@ router.patch(
           return void res.status(403).json({
             success: false,
             error: "You can only update your own sessions",
+          });
+        }
+      } else {
+        // Staff: verify the session exists before updating.
+        const { data: existing } = await getServiceClient()
+          .from("telemedicine_sessions")
+          .select("id")
+          .eq("id", sessionId)
+          .maybeSingle();
+        if (!existing) {
+          return void res.status(404).json({
+            success: false,
+            error: "Session not found",
           });
         }
       }
@@ -426,7 +439,7 @@ router.patch(
         updates.recording_url = recordingUrl;
       }
 
-      const { data, error } = await serviceClient
+      const { data, error } = await getServiceClient()
         .from("telemedicine_sessions")
         .update(updates)
         .eq("id", sessionId)
@@ -449,7 +462,7 @@ router.patch(
         else if (normalizedStatus === "COMPLETED") appointmentStatus = "COMPLETED";
         else if (normalizedStatus === "CANCELLED" || normalizedStatus === "MISSED") appointmentStatus = "REJECTED"; // or CANCELLED if supported
         
-        await serviceClient
+        await getServiceClient()
           .from("appointments")
           .update({ status: appointmentStatus })
           .eq("id", data.appointment_id);
@@ -485,7 +498,7 @@ router.patch(
         });
       }
 
-      const { data, error } = await serviceClient
+      const { data, error } = await getServiceClient()
         .from("telemedicine_sessions")
         .update({
           status: "SCHEDULED",

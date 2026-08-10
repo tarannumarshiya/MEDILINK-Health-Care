@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
-import { getServiceClient, resolveRequestClient } from "../lib/supabase";
+import { getServiceClient, resolveRequestClient, dbErrorStatus } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { STAFF_ROLES } from "../lib/roles";
+import { isValidYmdDate } from "../lib/dates";
 
 const router = Router();
 
@@ -43,38 +44,52 @@ function isStaff(role?: string): boolean {
 router.get("/", async (req: Request, res: Response) => {
   try {
     const patientPhone = String(req.query.patient_phone || "").trim();
-    let phoneToQuery = patientPhone;
+    const phoneToQuery = patientPhone;
 
-    // Check session if patientPhone is not explicitly queried
-    if (!phoneToQuery) {
-      const authHeader = req.headers.authorization ?? "";
-      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-      const authClient = resolveRequestClient(req);
-      const authRes = await authClient.auth.getUser(token || undefined);
-      const user = authRes?.data?.user;
-      if (user) {
-        const { data: patient } = await getServiceClient()
-          .from("patients")
-          .select("phone")
-          .eq("profile_id", user.id)
-          .maybeSingle();
-        if (patient) {
-          phoneToQuery = patient.phone;
-        }
+    const authHeader = req.headers.authorization ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const authClient = resolveRequestClient(req);
+    const authRes = await authClient.auth.getUser(token || undefined);
+    const user = authRes?.data?.user;
+
+    // Reminders are PHI (medicine names + schedules). They are only ever
+    // served to the authenticated owner — never to anonymous callers.
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { data: patient } = await getServiceClient()
+      .from("patients")
+      .select("phone")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+
+    // A phone passed via the query string must belong to the caller, unless
+    // the caller is staff (medical staff may inspect a patient's reminders).
+    if (phoneToQuery) {
+      const { data: callerProfile } = await getServiceClient()
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      const staff = isStaff(callerProfile?.role);
+      if (!staff && !(patient && patient.phone === phoneToQuery)) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
       }
     }
 
-    if (!phoneToQuery) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
+    const effectivePhone = phoneToQuery || patient?.phone;
+    if (!effectivePhone) {
+      return res.status(404).json({ success: false, error: "No patient record linked to this account" });
     }
 
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, profile_id, created_at")
-      .eq("patient_phone", phoneToQuery)
+      .eq("patient_phone", effectivePhone)
       .order("next_reminder_date", { ascending: true });
 
-    if (error) return res.status(500).json({ success: false, error: error.message });
+    if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
     return res.json({ success: true, reminders: data || [] });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
@@ -156,6 +171,13 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(422).json({ success: false, error: "Invalid frequency" });
     }
 
+    if (start_date) {
+      const startDateStr = String(start_date).trim();
+      if (!isValidYmdDate(startDateStr)) {
+        return res.status(400).json({ success: false, error: "Invalid start_date format. Use YYYY-MM-DD" });
+      }
+    }
+
     const next_reminder_date = getNextReminderDate(frequency, start_date);
 
     const { data, error } = await getServiceClient()
@@ -174,7 +196,7 @@ router.post("/", async (req: Request, res: Response) => {
       .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, profile_id, created_at")
       .single();
 
-    if (error) return res.status(500).json({ success: false, error: error.message });
+    if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
     return res.status(201).json({ success: true, reminder: data });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
@@ -243,7 +265,7 @@ router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
       .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
       .single();
 
-    if (error) return res.status(500).json({ success: false, error: error.message });
+    if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
     return res.json({ success: true, reminder: data });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
@@ -299,7 +321,7 @@ router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
       .delete()
       .eq("id", id);
 
-    if (error) return res.status(500).json({ success: false, error: error.message });
+    if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
     return res.json({ success: true, message: "Reminder deleted" });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });

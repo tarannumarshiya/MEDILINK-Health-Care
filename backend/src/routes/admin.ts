@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { createRequestClient, serviceClient } from "../lib/supabase";
+import { createRequestClient, resolveRequestClient, serviceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceCode } from "../lib/ids";
 
@@ -76,7 +76,7 @@ router.patch("/departments", requireAuth, requireRole(ADMIN_ROLES), async (req: 
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/doctors", async (req: Request, res: Response) => {
-  const supabase = createRequestClient(req);
+  const supabase = resolveRequestClient(req);
 
   const { data, error } = await supabase
     .from("doctors")
@@ -91,9 +91,9 @@ router.get("/doctors", async (req: Request, res: Response) => {
   if (error) return void res.status(500).json({ error: error.message });
   res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
 
-  const doctorsWithFlatten = (data ?? []).map((doctor: any) => {
-    const profiles = Array.isArray(doctor.profiles) ? doctor.profiles[0] : doctor.profiles;
-    const departments = Array.isArray(doctor.departments) ? doctor.departments[0] : doctor.departments;
+  const doctorsWithFlatten = (data ?? []).map((doc: any) => {
+    const profiles = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
+    const departments = Array.isArray(doc.departments) ? doc.departments[0] : doc.departments;
 
     // Remove email from profiles object to be safe
     if (profiles) {
@@ -101,14 +101,14 @@ router.get("/doctors", async (req: Request, res: Response) => {
     }
 
     return {
-      id: doctor.id,
-      profile_id: doctor.profile_id,
-      department_id: doctor.department_id,
-      qualification: doctor.qualification,
-      experience_years: doctor.experience_years,
-      consultation_fee: doctor.consultation_fee,
-      is_available: doctor.is_available,
-      created_at: doctor.created_at,
+      id: doc.id,
+      profile_id: doc.profile_id,
+      department_id: doc.department_id,
+      qualification: doc.qualification,
+      experience_years: doc.experience_years,
+      consultation_fee: doc.consultation_fee,
+      is_available: doc.is_available,
+      created_at: doc.created_at,
       /* Flattened display fields */
       full_name: profiles?.full_name ?? null,
       role: profiles?.role ?? null,
@@ -118,6 +118,13 @@ router.get("/doctors", async (req: Request, res: Response) => {
       profiles,
       departments,
     };
+  });
+
+  // Belt-and-braces: never emit an email field at any nesting depth.
+  (doctorsWithFlatten as any[]).forEach((d: any) => {
+    delete d?.email;
+    delete d?.profiles?.email;
+    if (Array.isArray(d.profiles)) d.profiles.forEach((p: any) => delete p?.email);
   });
 
   // Filter out doctors whose profile has been deactivated
