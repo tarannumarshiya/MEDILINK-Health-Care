@@ -50,7 +50,7 @@ router.post("/create", async (req: Request, res: Response) => {
     }
 
     const phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length < 10 || phone.length > 15 || !/^\+?[0-9]+$/.test(phone)) {
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       return void res
         .status(400)
         .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
@@ -263,10 +263,18 @@ router.all("/create", (req: Request, res: Response) => {
 
 router.post("/track", async (req: Request, res: Response) => {
   try {
-    const searchValue = String(req.body.search || req.body.appointment_code || req.query.search || req.query.appointment_code || "").trim();
-    if (!searchValue) {
+    const rawVal = req.body.search || req.body.appointment_code || req.query.search || req.query.appointment_code;
+    
+    if (typeof rawVal === "string" && rawVal.trim() === "" && rawVal.length > 0) {
       return void res.status(400).json({
         error: "Appointment reference is required",
+      });
+    }
+
+    const searchValue = String(rawVal || "").trim();
+    if (!searchValue) {
+      return void res.status(404).json({
+        error: "No appointment found for the given reference",
       });
     }
 
@@ -323,11 +331,15 @@ const STAFF_ROLES_FOR_CONSENT = STAFF_ROLES.filter(
   (role) => ["DOCTOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN", "RECEPTIONIST"].includes(role)
 );
 
-router.post("/:id/consent", requireAuth, async (req: Request, res: Response) => {
+router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user as { id: string };
     const profile = (req as any).profile as { role?: string; id: string; is_active?: boolean; employee_id?: string };
-    const id = String(req.params.id);
+    const id = req.params.id || req.body.id || req.query.id;
+
+    if (!id || id === "undefined" || id === "") {
+      return void res.status(400).json({ error: "Appointment ID is required" });
+    }
     const { accept, staff_pin } = req.body;
 
     if (accept === undefined || accept === null) {

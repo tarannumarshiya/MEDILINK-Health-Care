@@ -8,7 +8,7 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
-  const statusCode = err instanceof AppError ? err.statusCode : 500;
+  const statusCode = err instanceof AppError ? err.statusCode : (err.status || err.statusCode || 500);
   const message = err.message || "An unexpected error occurred";
 
   logger.error(`Error processing request: ${req.method} ${req.originalUrl}`, err, {

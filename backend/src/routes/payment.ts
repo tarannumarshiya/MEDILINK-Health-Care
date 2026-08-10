@@ -17,7 +17,7 @@ async function resolveReferenceAmount(purpose: string, referenceId?: string, inv
       .select("total, status")
       .eq("id", referenceId)
       .single();
-    if (error || !data) return { error: "Order not found", status: 404 };
+    if (error || !data) return { error: "Order not found", status: 400 };
     return { amount: Number(data.total) || 0, invoiceId: null, status: 200 };
   }
 
@@ -27,8 +27,19 @@ async function resolveReferenceAmount(purpose: string, referenceId?: string, inv
       .select("id, total, status")
       .eq("invoice_code", invoiceCode)
       .single();
-    if (error || !data) return { error: "Invoice not found", status: 404 };
+    if (error || !data) return { error: "Invoice not found", status: 400 };
     return { amount: Number(data.total) || 0, invoiceId: data.id, status: 200 };
+  }
+
+  if (referenceId) {
+    const { data, error } = await serviceClient
+      .from("invoices")
+      .select("id, total, status")
+      .eq("id", referenceId)
+      .single();
+    if (!error && data) {
+      return { amount: Number(data.total) || 0, invoiceId: data.id, status: 200 };
+    }
   }
 
   return { error: "invoiceCode or referenceId is required", status: 400 };
@@ -96,7 +107,7 @@ router.post(
 /*                            POST /api/payment/create-order                   */
 /* -------------------------------------------------------------------------- */
 
-router.post("/create-order", async (req: Request, res: Response) => {
+router.post("/create-order", requireAuth, async (req: Request, res: Response) => {
   const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
   const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
   const purpose = req.body.purpose || req.query.purpose || "invoice";
@@ -145,7 +156,7 @@ router.post("/create-order", async (req: Request, res: Response) => {
 /*                            POST /api/payment/create-qr                      */
 /* -------------------------------------------------------------------------- */
 
-router.post("/create-qr", async (req: Request, res: Response) => {
+router.post("/create-qr", requireAuth, async (req: Request, res: Response) => {
   const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
   const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
   const purpose = req.body.purpose || req.query.purpose || "invoice";

@@ -1,12 +1,14 @@
 import { Router, Request, Response } from "express";
-import { createRequestClient } from "../lib/supabase";
+import { serviceClient } from "../lib/supabase";
 
 const router = Router();
 
 // POST /api/contact
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const supabase = createRequestClient(req);
+    if (req.body && JSON.stringify(req.body).length > 100 * 1024) {
+      return void res.status(413).json({ error: "Payload Too Large" });
+    }
     const { full_name, email, phone, subject, message } = req.body;
 
     if (!full_name || !email || !subject || !message) {
@@ -34,12 +36,12 @@ router.post("/", async (req: Request, res: Response) => {
 
     if (phone) {
       const phoneDigits = phone.replace(/\D/g, "");
-      if (phoneDigits.length < 10 || phone.length > 15 || !/^\+?[0-9]+$/.test(phone)) {
+      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
         return void res.status(400).json({ error: "Invalid phone number format" });
       }
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await serviceClient
       .from("contact_messages")
       .insert({
         full_name,

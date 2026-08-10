@@ -198,7 +198,7 @@ router.post("/orders", async (req: Request, res: Response) => {
     }
 
     const phoneDigits = patient_phone.replace(/\D/g, "");
-    if (phoneDigits.length < 10 || patient_phone.length > 15 || !/^\+?[0-9]+$/.test(patient_phone)) {
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       return void res
         .status(400)
         .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
@@ -282,12 +282,12 @@ router.post("/orders", async (req: Request, res: Response) => {
 
 router.post("/orders/track", async (req: Request, res: Response) => {
   try {
-    const { search } = req.body;
-    if (!search || typeof search !== "string" || !search.trim()) {
+    const rawSearch = req.body.search || req.body.order_id || req.body.phone || req.body.patient_phone || req.query.search || req.query.order_id || req.query.phone || req.query.patient_phone;
+    if (!rawSearch || typeof rawSearch !== "string" || !rawSearch.trim()) {
       return void res.status(400).json({ error: "Search query (Order ID or Phone) is required" });
     }
 
-    const cleanSearch = search.trim();
+    const cleanSearch = rawSearch.trim();
     let query = serviceClient
       .from("pharmacy_public_orders")
       .select("id, status, patient_name, delivery_type, created_at")
@@ -297,7 +297,8 @@ router.post("/orders/track", async (req: Request, res: Response) => {
     if (isUuid) {
       query = query.or(`id.eq.${cleanSearch},patient_phone.eq.${cleanSearch}`);
     } else {
-      query = query.eq("patient_phone", cleanSearch);
+      const phoneDigits = cleanSearch.replace(/\D/g, "");
+      query = query.eq("patient_phone", phoneDigits);
     }
 
     const { data: orders, error } = await query;
@@ -488,6 +489,41 @@ router.patch(
     res.json({ success: true });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRACK ORDERS  →  /api/pharmacy/orders/track  (public POST)
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/orders/track", async (req: Request, res: Response) => {
+  try {
+    const orderId = req.body.order_id || req.body.orderId || req.query.order_id || req.query.orderId;
+    const phone = req.body.patient_phone || req.body.patientPhone || req.body.phone || req.query.patient_phone || req.query.phone;
+
+    if (!orderId && !phone) {
+      return void res.status(400).json({ error: "order_id or patient_phone required" });
+    }
+
+    let query = serviceClient.from("pharmacy_public_orders").select("*");
+
+    if (orderId) {
+      query = query.eq("id", String(orderId).trim());
+    } else if (phone) {
+      const cleanPhone = String(phone).replace(/\D/g, "");
+      query = query.eq("patient_phone", cleanPhone);
+    }
+
+    const { data: orders, error } = await query;
+    if (error) return void res.status(500).json({ error: error.message });
+
+    if (!orders || orders.length === 0) {
+      return void res.status(404).json({ error: "No pharmacy orders found" });
+    }
+
+    res.json({ success: true, orders });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VENDORS  →  /api/pharmacy/vendors  (protected)

@@ -1,0 +1,1260 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Medilink Healthcare API",
+    "description": "Comprehensive Interactive API Documentation for Medilink Healthcare Platform",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "/",
+      "description": "Relative server route"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Supabase JWT authentication token."
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Check Server Health",
+        "tags": ["Platform"],
+        "responses": {
+          "200": {
+            "description": "UP"
+          }
+        }
+      }
+    },
+    "/api/patients/register": {
+      "post": {
+        "summary": "Register Patient",
+        "tags": ["Patients"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["full_name", "age", "phone"],
+                "properties": {
+                  "full_name": { "type": "string", "example": "Preetham Manohar" },
+                  "age": { "type": "integer", "example": 28 },
+                  "phone": { "type": "string", "example": "9876543210" },
+                  "email": { "type": "string", "example": "preetham@medilink.io" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/appointments/create": {
+      "post": {
+        "summary": "Book Appointment",
+        "tags": ["Appointments"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["full_name", "age", "phone", "department", "preferred_date", "preferred_time"],
+                "properties": {
+                  "full_name": { "type": "string", "example": "Manohar Sameer" },
+                  "age": { "type": "integer", "example": 35 },
+                  "phone": { "type": "string", "example": "9123456780" },
+                  "department": { "type": "string", "example": "Cardiology" },
+                  "preferred_date": { "type": "string", "example": "2026-08-15" },
+                  "preferred_time": { "type": "string", "example": "10:30" },
+                  "symptoms": { "type": "string", "example": "Mild chest tightness" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Appointment registered" }
+        }
+      }
+    },
+    "/api/appointments/track": {
+      "post": {
+        "summary": "Track Appointment Reference",
+        "tags": ["Appointments"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "search": { "type": "string", "example": "APT-1786333180" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/appointments/{id}/consent": {
+      "post": {
+        "summary": "Submit Consent Agreement",
+        "tags": ["Appointments"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["accept"],
+                "properties": {
+                  "accept": { "type": "boolean", "example": true },
+                  "staff_pin": { "type": "string", "example": "1234" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Consent saved" }
+        }
+      }
+    },
+    "/api/admin/departments": {
+      "get": {
+        "summary": "List Departments",
+        "tags": ["Admin"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "post": {
+        "summary": "Create Department",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "example": "Neurology" },
+                  "description": { "type": "string", "example": "Brain and nervous system disorders" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "patch": {
+        "summary": "Toggle Department Status",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["department_id", "is_active"],
+                "properties": {
+                  "department_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "is_active": { "type": "boolean", "example": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/admin/doctors": {
+      "get": {
+        "summary": "List Active Doctors",
+        "tags": ["Admin"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "post": {
+        "summary": "Register Doctor",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["full_name", "department", "specialty_dept"],
+                "properties": {
+                  "full_name": { "type": "string", "example": "Dr. Sameer Manohar" },
+                  "department": { "type": "string", "example": "Cardiology" },
+                  "specialty_dept": { "type": "string", "example": "Electrophysiology" },
+                  "email": { "type": "string", "example": "sameer@medilink.io" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "patch": {
+        "summary": "Update Doctor Availability",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["doctor_id", "is_available"],
+                "properties": {
+                  "doctor_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "is_available": { "type": "boolean", "example": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/admin/appointments/approve": {
+      "post": {
+        "summary": "Approve Appointment",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/admin/appointments/reject": {
+      "post": {
+        "summary": "Reject Appointment",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/admin/appointments": {
+      "patch": {
+        "summary": "Assign Doctor to Appointment",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id", "doctor_id"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "doctor_id": { "type": "string", "format": "uuid", "example": "dd0d4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/admin/contact-messages": {
+      "get": {
+        "summary": "List Contact Messages",
+        "tags": ["Admin"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "patch": {
+        "summary": "Mark Message Read",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["message_id"],
+                "properties": {
+                  "message_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/doctor/queue": {
+      "get": {
+        "summary": "Get Doctor Appointment Queue",
+        "tags": ["Doctor"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/doctor/start-consultation": {
+      "patch": {
+        "summary": "Start Consultation",
+        "tags": ["Doctor"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/doctor/prescription": {
+      "post": {
+        "summary": "Write Prescription",
+        "tags": ["Doctor"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id", "prescription_text"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "prescription_text": { "type": "string", "example": "Take Paracetamol 500mg twice daily for 3 days." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/doctor/lab-report": {
+      "get": {
+        "summary": "Get Appointment Lab Report",
+        "tags": ["Doctor"],
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/doctor/complete": {
+      "patch": {
+        "summary": "Complete Consultation",
+        "tags": ["Doctor"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "notes": { "type": "string", "example": "Patient advised rest for 2 days" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/doctor/patient-history": {
+      "get": {
+        "summary": "Get Patient History",
+        "tags": ["Doctor"],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/pharmacy/inventory": {
+      "get": {
+        "summary": "Get Inventory Details",
+        "tags": ["Pharmacy"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "patch": {
+        "summary": "Update Stock Levels",
+        "tags": ["Pharmacy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["medicine_id", "quantity"],
+                "properties": {
+                  "medicine_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "quantity": { "type": "integer", "example": 50 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/pharmacy/orders": {
+      "get": {
+        "summary": "List Pharmacy Orders",
+        "tags": ["Pharmacy"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "patch": {
+        "summary": "Update Pharmacy Order Status",
+        "tags": ["Pharmacy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["order_id", "status"],
+                "properties": {
+                  "order_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "status": { "type": "string", "example": "DISPATCHED" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/pharmacy/queue": {
+      "get": {
+        "summary": "Get Pharmacy Queue",
+        "tags": ["Pharmacy"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "patch": {
+        "summary": "Update Pharmacy Queue Item",
+        "tags": ["Pharmacy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["queue_id", "status"],
+                "properties": {
+                  "queue_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "status": { "type": "string", "example": "COMPLETED" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/pharmacy/vendors": {
+      "get": {
+        "summary": "List Pharmacy Vendors",
+        "tags": ["Pharmacy"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "post": {
+        "summary": "Register Vendor",
+        "tags": ["Pharmacy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "contact_person", "phone"],
+                "properties": {
+                  "name": { "type": "string", "example": "MedSupply Corp" },
+                  "contact_person": { "type": "string", "example": "Ayesha Sana" },
+                  "phone": { "type": "string", "example": "9123456780" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/pharmacy/questions": {
+      "post": {
+        "summary": "Submit Pharmacy Query",
+        "tags": ["Pharmacy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patient_name", "email", "query"],
+                "properties": {
+                  "patient_name": { "type": "string", "example": "Jhansi Sana" },
+                  "email": { "type": "string", "example": "jhansi@medilink.io" },
+                  "query": { "type": "string", "example": "Do you have stock of Amoxicillin 250mg?" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/lab/queue": {
+      "get": {
+        "summary": "Get Lab Queue",
+        "tags": ["Lab"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/lab/update-status": {
+      "patch": {
+        "summary": "Update Test Status",
+        "tags": ["Lab"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["test_id", "status"],
+                "properties": {
+                  "test_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "status": { "type": "string", "example": "COMPLETED" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/lab/upload-report": {
+      "post": {
+        "summary": "Upload Lab Report",
+        "tags": ["Lab"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id", "report_url"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "report_url": { "type": "string", "example": "https://supabase-storage/lab-reports/report-123.pdf" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/lab/verify-report": {
+      "patch": {
+        "summary": "Verify Lab Report Status",
+        "tags": ["Lab"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["report_id"],
+                "properties": {
+                  "report_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/lab/reports": {
+      "get": {
+        "summary": "List Lab Reports",
+        "tags": ["Lab"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/billing/invoices": {
+      "get": {
+        "summary": "List Invoices",
+        "tags": ["Billing"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/billing/generate": {
+      "post": {
+        "summary": "Generate Invoice",
+        "tags": ["Billing"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id", "total"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "total": { "type": "number", "example": 1500 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/billing/pay": {
+      "patch": {
+        "summary": "Mark Invoice Paid",
+        "tags": ["Billing"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["invoice_id"],
+                "properties": {
+                  "invoice_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/billing/revenue": {
+      "get": {
+        "summary": "Get Revenue Summary",
+        "tags": ["Billing"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/billing/payments": {
+      "get": {
+        "summary": "List Payment Records",
+        "tags": ["Billing"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/insurance/claims": {
+      "get": {
+        "summary": "List Claims",
+        "tags": ["Insurance"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/insurance/create": {
+      "post": {
+        "summary": "Submit Insurance Claim",
+        "tags": ["Insurance"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["amount"],
+                "properties": {
+                  "patient_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "amount": { "type": "number", "example": 1000 },
+                  "policy_id": { "type": "string", "format": "uuid", "example": "dd0d4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/insurance/approve": {
+      "patch": {
+        "summary": "Approve Insurance Claim",
+        "tags": ["Insurance"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["claim_id", "settled_amount"],
+                "properties": {
+                  "claim_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "settled_amount": { "type": "number", "example": 900 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/insurance/reject": {
+      "patch": {
+        "summary": "Reject Insurance Claim",
+        "tags": ["Insurance"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["claim_id"],
+                "properties": {
+                  "claim_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "decision_reason": { "type": "string", "example": "Treatment not covered in policy" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/emergency/sos-requests": {
+      "get": {
+        "summary": "Get SOS Queue",
+        "tags": ["Emergency"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/emergency/sos-update": {
+      "patch": {
+        "summary": "Update SOS Alert Status",
+        "tags": ["Emergency"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["request_id", "status"],
+                "properties": {
+                  "request_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "status": { "type": "string", "example": "DISPATCHED" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/emergency/public-status": {
+      "get": {
+        "summary": "Get Public Beds Status",
+        "tags": ["Emergency"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/emergency/cases": {
+      "get": {
+        "summary": "List Emergency Cases",
+        "tags": ["Emergency"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/emergency/create": {
+      "post": {
+        "summary": "Create Emergency Case",
+        "tags": ["Emergency"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patient_name", "phone"],
+                "properties": {
+                  "patient_name": { "type": "string", "example": "Kiran Rahul" },
+                  "phone": { "type": "string", "example": "9123456780" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/emergency/update-status": {
+      "patch": {
+        "summary": "Update Emergency Case Status",
+        "tags": ["Emergency"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["case_id", "status"],
+                "properties": {
+                  "case_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "status": { "type": "string", "example": "RESOLVED" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/emergency/assign-bed": {
+      "patch": {
+        "summary": "Assign Bed to Case",
+        "tags": ["Emergency"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["case_id", "bed_id"],
+                "properties": {
+                  "case_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "bed_id": { "type": "string", "format": "uuid", "example": "bb0b4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/telemedicine/admin-approve": {
+      "patch": {
+        "summary": "Admin Approve Session",
+        "tags": ["Telemedicine"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["session_id", "doctor_id"],
+                "properties": {
+                  "session_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "doctor_id": { "type": "string", "format": "uuid", "example": "dd0d4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/reception/queue": {
+      "get": {
+        "summary": "Get Reception Queue",
+        "tags": ["Reception"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/reception/walk-in": {
+      "post": {
+        "summary": "Register Walk-In Patient",
+        "tags": ["Reception"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patient_name", "phone", "department"],
+                "properties": {
+                  "patient_name": { "type": "string", "example": "Jhansi Sana" },
+                  "phone": { "type": "string", "example": "9123456780" },
+                  "department": { "type": "string", "example": "General Medicine" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/reception/check-in": {
+      "post": {
+        "summary": "Check-In Patient",
+        "tags": ["Reception"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_id"],
+                "properties": {
+                  "appointment_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/reception/walk-in-status": {
+      "patch": {
+        "summary": "Update Walk-In Status",
+        "tags": ["Reception"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["walk_in_id", "status"],
+                "properties": {
+                  "walk_in_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "status": { "type": "string", "example": "CHECKED_IN" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/reception/toggle-doctor": {
+      "patch": {
+        "summary": "Toggle Doctor Active Availability",
+        "tags": ["Reception"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["doctor_id", "is_available"],
+                "properties": {
+                  "doctor_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "is_available": { "type": "boolean", "example": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/payment/verify-qr": {
+      "post": {
+        "summary": "Verify QR Payment",
+        "tags": ["Payment"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["qrId"],
+                "properties": {
+                  "qrId": { "type": "string", "example": "qr_Hsp19283" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/payment/mark-cash": {
+      "post": {
+        "summary": "Record Cash Payment",
+        "tags": ["Payment"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["referenceId"],
+                "properties": {
+                  "referenceId": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/payment/public-settings": {
+      "get": {
+        "summary": "Get Public Gateway Configuration",
+        "tags": ["Payment"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/payment/settings": {
+      "get": {
+        "summary": "Get Secure Payment Gateway Settings",
+        "tags": ["Payment"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "summary": "List User Notifications",
+        "tags": ["Notifications"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/notifications/create": {
+      "post": {
+        "summary": "Broadcast Notification",
+        "tags": ["Notifications"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["user_id", "title", "message"],
+                "properties": {
+                  "user_id": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" },
+                  "title": { "type": "string", "example": "Lab Report Ready" },
+                  "message": { "type": "string", "example": "Your blood test report is ready for viewing." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/notifications/read": {
+      "patch": {
+        "summary": "Mark Notifications Read",
+        "tags": ["Notifications"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["notification_ids"],
+                "properties": {
+                  "notification_ids": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "uuid", "example": "cc0c4e12-3b2d-4f1a-8c5e-9a1b2c3d4e5f" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/audit-logs": {
+      "get": {
+        "summary": "List Secure Audit Logs",
+        "tags": ["Audit"],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    }
+  }
+}

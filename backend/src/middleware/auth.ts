@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { resolveRequestClient } from "../lib/supabase";
+import { resolveRequestClient, getServiceClient } from "../lib/supabase";
 
 /**
  * Attaches `req.user` and `req.profile` from the Supabase session token.
@@ -14,11 +14,14 @@ export async function requireAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  const authHeader = req.headers.authorization ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+
   const supabase = resolveRequestClient(req);
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser();
+  } = await supabase.auth.getUser(token || undefined);
 
   if (error || !user) {
     res.status(401).json({ error: "Unauthorized" });
@@ -26,7 +29,7 @@ export async function requireAuth(
   }
 
   // Fetch profile so downstream handlers can check role/is_active
-  const { data: profile } = await supabase
+  const { data: profile } = await getServiceClient()
     .from("profiles")
     .select("id, role, is_active, full_name, email")
     .eq("id", user.id)

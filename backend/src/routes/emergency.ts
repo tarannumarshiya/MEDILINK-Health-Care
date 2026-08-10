@@ -38,15 +38,28 @@ router.post("/sos", async (req: Request, res: Response) => {
       return void res.status(400).json({ error: "patient_name and phone are required" });
     }
 
+    const phoneDigits = String(phone).replace(/\D/g, "");
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+      return void res.status(400).json({ error: "Invalid phone number format" });
+    }
+
+    let parsedAge = null;
+    if (age !== undefined && age !== null && age !== "") {
+      parsedAge = Number(age);
+      if (isNaN(parsedAge) || !isFinite(parsedAge) || parsedAge < 0) {
+        return void res.status(400).json({ error: "Age must be a non-negative number" });
+      }
+    }
+
     const { data, error } = await serviceClient
       .from("emergency_sos_requests")
       .insert({
         patient_name,
-        phone,
+        phone: phoneDigits,
         location: location ?? null,
         emergency_type: emergency_type ?? "GENERAL",
         description: description ?? null,
-        age: age ? Number(age) : null,
+        age: parsedAge,
         status: "PENDING",
       })
       .select()

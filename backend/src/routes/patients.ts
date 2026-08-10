@@ -23,7 +23,7 @@ router.post("/register", async (req: Request, res: Response) => {
     }
 
     const phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length < 10 || phone.length > 15 || !/^\+?[0-9]+$/.test(phone)) {
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       return void res
         .status(400)
         .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
