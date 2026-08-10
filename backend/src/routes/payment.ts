@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient } from "../lib/supabase";
 import { requireAuth } from "../middleware/auth";
 import { config } from "../lib/config";
 
@@ -12,34 +12,33 @@ const router = Router();
 
 async function resolveReferenceAmount(purpose: string, referenceId?: string, invoiceCode?: string) {
   if (purpose === "pharmacy_order" && referenceId) {
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("pharmacy_public_orders")
       .select("total, status")
       .eq("id", referenceId)
       .single();
-    if (error || !data) return { error: "Order not found", status: 400 };
+    if (error || !data) return { error: "Order not found", status: 404 };
     return { amount: Number(data.total) || 0, invoiceId: null, status: 200 };
   }
 
   if (invoiceCode) {
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("invoices")
       .select("id, total, status")
       .eq("invoice_code", invoiceCode)
       .single();
-    if (error || !data) return { error: "Invoice not found", status: 400 };
+    if (error || !data) return { error: "Invoice not found", status: 404 };
     return { amount: Number(data.total) || 0, invoiceId: data.id, status: 200 };
   }
 
   if (referenceId) {
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("invoices")
       .select("id, total, status")
       .eq("id", referenceId)
       .single();
-    if (!error && data) {
-      return { amount: Number(data.total) || 0, invoiceId: data.id, status: 200 };
-    }
+    if (error || !data) return { error: "Invoice not found", status: 404 };
+    return { amount: Number(data.total) || 0, invoiceId: data.id, status: 200 };
   }
 
   return { error: "invoiceCode or referenceId is required", status: 400 };
@@ -52,7 +51,7 @@ function amountsMatch(a: number, b: number): boolean {
 /** Prevents duplicate payment recording for the same gateway payment id. */
 async function paymentAlreadyRecorded(razorpayPaymentId: string | null | undefined): Promise<boolean> {
   if (!razorpayPaymentId) return false;
-  const { data } = await serviceClient
+  const { data } = await getServiceClient()
     .from("payments")
     .select("id")
     .eq("razorpay_payment_id", razorpayPaymentId)
@@ -242,7 +241,7 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
       if (await paymentAlreadyRecorded(paymentId)) {
         return void res.json({ verified: true, paymentId, alreadyRecorded: true });
       }
-      await serviceClient.from("payments").insert({
+      await getServiceClient().from("payments").insert({
         invoice_id: invoiceId,
         invoice_code: invoiceCode ?? null,
         amount: expectedAmount,
@@ -251,9 +250,9 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
         razorpay_payment_id: paymentId,
       });
       if (purpose === "pharmacy_order" && referenceId) {
-        await serviceClient.from("pharmacy_public_orders").update({ status: "CONFIRMED" }).eq("id", referenceId);
+        await getServiceClient().from("pharmacy_public_orders").update({ status: "CONFIRMED" }).eq("id", referenceId);
       } else if (invoiceCode) {
-        await serviceClient.from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
+        await getServiceClient().from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
       }
       return void res.json({ verified: true, paymentId });
     }
@@ -279,7 +278,7 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
       if (await paymentAlreadyRecorded(paid.id)) {
         return void res.json({ verified: true, paymentId: paid.id, alreadyRecorded: true });
       }
-      await serviceClient.from("payments").insert({
+      await getServiceClient().from("payments").insert({
         invoice_id: invoiceId,
         invoice_code: invoiceCode ?? null,
         amount: expectedAmount,
@@ -288,9 +287,9 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
         razorpay_payment_id: paid.id ?? null,
       });
       if (purpose === "pharmacy_order" && referenceId) {
-        await serviceClient.from("pharmacy_public_orders").update({ status: "CONFIRMED" }).eq("id", referenceId);
+        await getServiceClient().from("pharmacy_public_orders").update({ status: "CONFIRMED" }).eq("id", referenceId);
       } else if (invoiceCode) {
-        await serviceClient.from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
+        await getServiceClient().from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
       }
       return void res.json({ verified: true, paymentId: paid.id });
     }
@@ -357,7 +356,7 @@ router.post("/verify", async (req: Request, res: Response) => {
 
   // ── MOCK: only reachable when demo mode is enabled (enforced at startup) ──
   const paymentId = razorpay_payment_id ?? "mock_payment_" + Date.now();
-  await serviceClient.from("payments").insert({
+  await getServiceClient().from("payments").insert({
     invoice_id: invoiceId,
     invoice_code: invoiceCode ?? null,
     amount: expectedAmount,
@@ -368,12 +367,12 @@ router.post("/verify", async (req: Request, res: Response) => {
   });
 
   if (purpose === "pharmacy_order" && referenceId) {
-    await serviceClient
+    await getServiceClient()
       .from("pharmacy_public_orders")
       .update({ status: "CONFIRMED" })
       .eq("id", referenceId);
   } else if (invoiceCode) {
-    await serviceClient
+    await getServiceClient()
       .from("invoices")
       .update({ status: "PAID" })
       .eq("invoice_code", invoiceCode);
@@ -402,7 +401,7 @@ router.post("/mark-cash", requireAuth, async (req: Request, res: Response) => {
   }
 
   const paymentId = "cash_" + Date.now();
-  await serviceClient.from("payments").insert({
+  await getServiceClient().from("payments").insert({
     invoice_id: invoiceId,
     invoice_code: invoiceCode ?? null,
     amount: expectedAmount,
@@ -412,12 +411,12 @@ router.post("/mark-cash", requireAuth, async (req: Request, res: Response) => {
   });
 
   if (purpose === "pharmacy_order" && referenceId) {
-    await serviceClient
+    await getServiceClient()
       .from("pharmacy_public_orders")
       .update({ status: "CONFIRMED" })
       .eq("id", referenceId);
   } else if (invoiceCode) {
-    await serviceClient
+    await getServiceClient()
       .from("invoices")
       .update({ status: "PAID" })
       .eq("invoice_code", invoiceCode);

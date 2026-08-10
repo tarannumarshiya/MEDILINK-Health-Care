@@ -65,3 +65,29 @@ export function __setServiceOverrideForTests(client: SupabaseClient | null) {
 export function __setRequestFactoryForTests(factory: ((req: Request) => SupabaseClient) | null) {
   requestFactoryOverride = factory;
 }
+
+/* -------------------------------------------------------------------------- */
+/*  PostgREST error mapping                                                    */
+/*  Many routes previously collapsed every database error into a 500, which    */
+/*  leaked server errors for ordinary 4xx conditions (invalid type casts,      */
+/*  CHECK/unique violations, unknown columns). Map the PostgREST status code   */
+/*  back to the caller so invalid inputs return the appropriate 4xx.           */
+/* -------------------------------------------------------------------------- */
+
+export function dbErrorStatus(error: any): number {
+  if (!error) return 500;
+
+  const status = Number((error as any).status);
+  if (Number.isInteger(status) && status >= 400 && status < 500) return status;
+
+  // Postgres error codes surfaced through PostgREST that are client faults.
+  const code = (error as any).code;
+  if (typeof code === "string") {
+    if (code === "PGRST116") return 404; // .single() with zero rows
+    if (["22007", "22008", "22P02", "23502", "23505", "23514", "42703", "42883"].includes(code)) {
+      return 400;
+    }
+  }
+
+  return 500;
+}
