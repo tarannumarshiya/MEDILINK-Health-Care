@@ -129,7 +129,7 @@ router.post("/create-order", async (req: Request, res: Response) => {
     },
     body: JSON.stringify({
       amount: Math.round(amount * 100),
-      currency: "BDT",
+      currency: "INR",
       receipt: invoiceCode || referenceId || undefined,
     }),
   });

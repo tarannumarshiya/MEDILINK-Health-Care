@@ -750,7 +750,7 @@ export default function PatientDashboardPage() {
                           invoiceCode={inv.invoice_code}
                           description={`Invoice ${inv.invoice_code}`}
                           prefill={{ name: patient?.full_name, email: patient?.email }}
-                          onSuccess={() => payInvoice(inv.id, "Razorpay")}
+                          onSuccess={(res) => payInvoice(inv.id, res.method)}
                         />
                       </>
                     )}
@@ -1065,7 +1065,7 @@ export default function PatientDashboardPage() {
                     description={`Invoice ${billPopup.invoice_code}`}
                     prefill={{ name: patient?.full_name, email: patient?.email }}
                     className="flex-1 justify-center"
-                    onSuccess={() => payInvoice(billPopup.id, "Razorpay")}
+                    onSuccess={(res) => payInvoice(billPopup.id, res.method)}
                   />
                 </div>
                 <div className="flex gap-3">
