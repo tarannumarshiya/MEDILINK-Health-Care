@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import PayButton from "@/components/payment/PayButton";
 import HospitalBill from "@/components/payment/HospitalBill";
 import PaymentSuccessModal from "@/components/payment/PaymentSuccessModal";
+import RazorpayScript from "@/components/payment/RazorpayScript";
 import DatePicker from "@/components/public/DatePicker";
 import TimeSelect from "@/components/public/TimeSelect";
 import {
@@ -1130,6 +1131,7 @@ export default function PatientDashboardPage() {
         method={paySuccessPopup?.method}
         onClose={() => setPaySuccessPopup(null)}
       />
+      <RazorpayScript />
     </>
   );
 }

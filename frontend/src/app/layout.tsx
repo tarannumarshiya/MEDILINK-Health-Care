@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
 import { ThemeProvider } from "next-themes";
-import Script from "next/script";
-
 import { StethoscopeBackground } from "@/components/public/StethoscopeBackground";
 import { PharmacyCartProvider } from "@/context/PharmacyCartContext";
 import CartDrawer from "@/components/pharmacy/CartDrawer";
@@ -59,12 +57,6 @@ export default function RootLayout({
             <CartDrawer />
           </PharmacyCartProvider>
         </ThemeProvider>
-
-        {/* Razorpay Checkout SDK — loaded globally for payment modals */}
-        <Script
-          src="https://checkout.razorpay.com/v1/checkout.js"
-          strategy="lazyOnload"
-        />
       </body>
     </html>
   );

@@ -65,6 +65,12 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: "10mb" }));
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err instanceof SyntaxError && "status" in err && err.status === 400) {
+    return res.status(400).json({ error: "Malformed JSON payload" });
+  }
+  next(err);
+});
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Global API rate limit and request timeout ────────────────────────────────
@@ -73,6 +79,10 @@ app.use("/api", requestTimeout(30000), apiLimiter);
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+app.all("/health", (req, res) => {
+  res.setHeader("Allow", "GET");
+  res.status(405).json({ error: "Method Not Allowed" });
 });
 
 // ─── Routes (auth endpoints get stricter limits) ──────────────────────────────

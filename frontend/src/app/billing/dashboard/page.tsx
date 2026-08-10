@@ -22,6 +22,7 @@ import { SuccessBanner } from "@/components/dashboard/SuccessBanner";
 import PayButton from "@/components/payment/PayButton";
 import HospitalBill from "@/components/payment/HospitalBill";
 import PaymentSuccessModal from "@/components/payment/PaymentSuccessModal";
+import RazorpayScript from "@/components/payment/RazorpayScript";
 
 type Invoice = {
   id: string;
@@ -915,6 +916,7 @@ export default function BillingDashboardPage() {
         method={successPopup?.method}
         onClose={() => setSuccessPopup(null)}
       />
+      <RazorpayScript />
     </DashboardShell>
   );
 }
