@@ -4,7 +4,7 @@ import { BadRequestError } from "../lib/errors";
 interface CachedResponse {
   statusCode: number;
   body: any;
-  headers: Record<string, string | string[] | undefined>;
+  headers: Record<string, any>;
 }
 
 // In-memory cache for idempotency keys (can be swapped for Redis in cluster setup)
