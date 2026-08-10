@@ -261,132 +261,22 @@ app.get("/", (req, res) => {
     ]},
   ];
 
-  const methodColor: Record<string, string> = {
-    GET:    "#10b981",
-    POST:   "#3b82f6",
-    PATCH:  "#f59e0b",
-    PUT:    "#8b5cf6",
-    DELETE: "#ef4444",
-  };
-
-  const groupColors = [
-    "#6366f1","#0ea5e9","#10b981","#f59e0b","#ef4444",
-    "#8b5cf6","#ec4899","#14b8a6","#f97316","#84cc16",
-    "#06b6d4","#a855f7","#22c55e","#e11d48","#0284c7",
-  ];
-
-  const routeCards = routes.map((group, gi) => {
-    const color = groupColors[gi % groupColors.length];
-    const rows = group.endpoints.map(ep => `
-      <tr>
-        <td style="padding:7px 10px;width:70px;text-align:center">
-          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.5px;background:${methodColor[ep.method] ?? "#64748b"}22;color:${methodColor[ep.method] ?? "#64748b"};border:1px solid ${methodColor[ep.method] ?? "#64748b"}44">${ep.method}</span>
-        </td>
-        <td style="padding:7px 10px;font-family:monospace;font-size:12.5px;color:#e2e8f0">${ep.path}</td>
-        <td style="padding:7px 10px;font-size:12px;color:#94a3b8">${ep.desc}</td>
-      </tr>`).join("");
-
-    return `
-    <div style="background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155;margin-bottom:16px">
-      <div style="padding:12px 16px;background:${color}18;border-bottom:1px solid ${color}33;display:flex;align-items:center;gap:8px">
-        <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;box-shadow:0 0 6px ${color}"></span>
-        <span style="font-weight:700;font-size:13px;color:${color};letter-spacing:.5px;text-transform:uppercase">${group.group}</span>
-        <span style="margin-left:4px;font-size:11px;color:#64748b;font-family:monospace">${group.base}</span>
-        <span style="margin-left:auto;font-size:11px;color:#475569">${group.endpoints.length} endpoint${group.endpoints.length !== 1 ? "s" : ""}</span>
-      </div>
-      <table style="width:100%;border-collapse:collapse">
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
-  }).join("");
-
   const totalEndpoints = routes.reduce((a, g) => a + g.endpoints.length, 0);
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Medilink API Server</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0f172a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; min-height: 100vh; padding: 32px 16px 64px; }
-    a { color: #38bdf8; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    tr:hover td { background: #ffffff08; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
-  </style>
-</head>
-<body>
-  <div style="max-width:900px;margin:0 auto">
-
-    <!-- Header -->
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid #1e293b">
-      <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#0ea5e9);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🏥</div>
-      <div>
-        <h1 style="font-size:22px;font-weight:800;color:#f1f5f9;letter-spacing:-.3px">Medilink API Server</h1>
-        <p style="font-size:13px;color:#64748b;margin-top:2px">Express · TypeScript · Supabase</p>
-      </div>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <span style="display:inline-flex;align-items:center;gap:6px;background:#10b98118;border:1px solid #10b98133;color:#10b981;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600">
-          <span style="width:7px;height:7px;background:#10b981;border-radius:50%;animation:pulse 2s infinite"></span>
-          Running
-        </span>
-      </div>
-    </div>
-
-    <!-- Stats bar -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
-      ${[
-        ["🗂️", "Routes", routes.length.toString()],
-        ["⚡", "Endpoints", totalEndpoints.toString()],
-        ["⏱️", "Uptime", uptimeStr],
-        ["🌐", "Port", String(PORT)],
-      ].map(([icon, label, val]) => `
-      <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px 16px">
-        <div style="font-size:18px">${icon}</div>
-        <div style="font-size:22px;font-weight:800;color:#f1f5f9;margin-top:4px">${val}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:.5px">${label}</div>
-      </div>`).join("")}
-    </div>
-
-    <!-- Routes -->
-    <h2 style="font-size:14px;font-weight:700;color:#475569;letter-spacing:.8px;text-transform:uppercase;margin-bottom:14px">API Routes</h2>
-    ${routeCards}
-
-    <!-- Footer -->
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <span style="font-size:12px;color:#475569">Medilink Health Care &copy; ${new Date().getFullYear()}</span>
-      <a href="/health" style="font-size:12px;color:#38bdf8">GET /health →</a>
-    </div>
-  </div>
-
-  <style>
-    @keyframes pulse {
-      0%,100% { opacity:1; }
-      50% { opacity:.4; }
-    }
-  </style>
-</body>
-</html>`;
-
-  const acceptsHtml = req.headers.accept && req.headers.accept.startsWith("text/html") && !req.headers.accept.includes("application/json");
-  if (acceptsHtml) {
-    res.setHeader("Content-Type", "text/html");
-    res.send(html);
-  } else {
-    res.json({
-      success: true,
-      name: "Medilink API Server",
-      status: "ok",
-      uptime,
-      uptime_str: uptimeStr,
-      total_endpoints: totalEndpoints,
-      timestamp: new Date().toISOString()
-    });
-  }
+  res.json({
+    success: true,
+    name: "Medilink API Server",
+    status: "ok",
+    uptime,
+    uptime_str: uptimeStr,
+    routes: routes.map((g) => ({
+      group: g.group,
+      base: g.base,
+      endpoints: g.endpoints.length,
+    })),
+    total_endpoints: totalEndpoints,
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.listen(PORT, () => {

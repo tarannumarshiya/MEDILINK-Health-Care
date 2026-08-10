@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { resolveRequestClient, getServiceClient } from "../lib/supabase";
+import { normalizeRole } from "../lib/roles";
 
 /**
  * Attaches `req.user` and `req.profile` from the Supabase session token.
@@ -35,9 +36,14 @@ export async function requireAuth(
     .eq("id", user.id)
     .maybeSingle();
 
-  // Attach to request for downstream use
+  // Attach to request for downstream use. The role is normalised once here so
+  // every route-level role check compares the same canonical value, regardless
+  // of the case/format stored in the profiles table.
   (req as any).user = user;
-  (req as any).profile = profile;
+  (req as any).profile = profile
+    ? { ...profile, role: normalizeRole(profile.role) }
+    : profile;
+  (req as any).role = normalizeRole(profile?.role);
 
   next();
 }
@@ -56,9 +62,10 @@ export function requireRole(allowedRoles: string[]) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    
+
+    const role = normalizeRole(profile.role);
     // SUPER_ADMIN implicitly has access to all role-protected routes
-    if (profile.role !== "SUPER_ADMIN" && !allowedRoles.includes(profile.role)) {
+    if (role !== "SUPER_ADMIN" && !allowedRoles.includes(role)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
