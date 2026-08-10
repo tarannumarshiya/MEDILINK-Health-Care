@@ -111,7 +111,7 @@ async function runLivePayment(opts: PayOptions): Promise<void> {
   const rzp = new window.Razorpay({
     key:         rzpKey,
     amount:      amount * 100, // paise
-    currency:    "BDT",
+    currency:    "INR",
     name:        "Medilink Healthcare",
     description: opts.description,
     order_id:    orderId,
