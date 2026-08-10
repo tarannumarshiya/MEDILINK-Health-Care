@@ -156,6 +156,16 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       if (!medicines || medicines.length === 0)
         return void res.status(400).json({ error: "At least one medicine is required" });
 
+      if (/[<>]/g.test(notes)) {
+        return void res.status(400).json({ error: "Prescription notes cannot contain HTML or script characters" });
+      }
+
+      for (const item of medicines) {
+        if (item.quantity !== undefined && (isNaN(Number(item.quantity)) || Number(item.quantity) <= 0)) {
+          return void res.status(400).json({ error: "Medicine quantity must be positive" });
+        }
+      }
+
       const { data: doctor, error: doctorError } = await supabase
         .from("doctors").select("id, consultation_fee").eq("profile_id", user.id).single();
       if (doctorError || !doctor)

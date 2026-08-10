@@ -26,6 +26,19 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
   try {
     const { appointment_id, consultation_charge, lab_charge, medicine_charge, insurance_deduction, patient_name, patient_id } = req.body;
 
+    if (
+      (consultation_charge !== undefined && (isNaN(Number(consultation_charge)) || Number(consultation_charge) < 0)) ||
+      (lab_charge !== undefined && (isNaN(Number(lab_charge)) || Number(lab_charge) < 0)) ||
+      (medicine_charge !== undefined && (isNaN(Number(medicine_charge)) || Number(medicine_charge) < 0)) ||
+      (insurance_deduction !== undefined && (isNaN(Number(insurance_deduction)) || Number(insurance_deduction) < 0))
+    ) {
+      return void res.status(400).json({ error: "Charges and deductions must be non-negative numbers" });
+    }
+
+    if (patient_name && /[<>]/g.test(patient_name)) {
+      return void res.status(400).json({ error: "Patient name cannot contain HTML or script characters" });
+    }
+
     const total = Math.max(0,
       Number(consultation_charge ?? 0)
       + Number(lab_charge ?? 0)
@@ -67,6 +80,10 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
   try {
     const { invoice_id, method, amount } = req.body;
     if (!invoice_id) return void res.status(400).json({ error: "invoice_id required" });
+
+    if (amount !== undefined && (isNaN(Number(amount)) || Number(amount) < 0)) {
+      return void res.status(400).json({ error: "Payment amount must be a non-negative number" });
+    }
 
     const { data: invoice, error: invErr } = await serviceClient
       .from("invoices").select("*").eq("id", invoice_id).single();

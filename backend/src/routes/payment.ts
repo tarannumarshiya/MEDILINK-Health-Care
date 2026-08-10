@@ -96,7 +96,7 @@ router.post(
 /*                            POST /api/payment/create-order                   */
 /* -------------------------------------------------------------------------- */
 
-router.post("/create-order", requireAuth, async (req: Request, res: Response) => {
+router.post("/create-order", async (req: Request, res: Response) => {
   const {
     invoiceCode,
     purpose = "invoice",
@@ -147,7 +147,7 @@ router.post("/create-order", requireAuth, async (req: Request, res: Response) =>
 /*                            POST /api/payment/create-qr                      */
 /* -------------------------------------------------------------------------- */
 
-router.post("/create-qr", requireAuth, async (req: Request, res: Response) => {
+router.post("/create-qr", async (req: Request, res: Response) => {
   const { invoiceCode, purpose = "invoice", referenceId } = req.body;
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
@@ -207,7 +207,7 @@ router.post("/create-qr", requireAuth, async (req: Request, res: Response) => {
 /*                            POST /api/payment/verify-qr                      */
 /* -------------------------------------------------------------------------- */
 
-router.post("/verify-qr", requireAuth, async (req: Request, res: Response) => {
+router.post("/verify-qr", async (req: Request, res: Response) => {
   const { qrId, invoiceCode, purpose = "invoice", referenceId, amount } = req.body;
   if (!qrId) return void res.status(400).json({ error: "qrId required" });
 
@@ -289,7 +289,7 @@ router.post("/verify-qr", requireAuth, async (req: Request, res: Response) => {
 /*                            POST /api/payment/verify                         */
 /* -------------------------------------------------------------------------- */
 
-router.post("/verify", requireAuth, async (req: Request, res: Response) => {
+router.post("/verify", async (req: Request, res: Response) => {
   const {
     razorpay_order_id,
     razorpay_payment_id,
