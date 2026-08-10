@@ -7,6 +7,9 @@ import {
 } from "../lib/ids";
 import { generateInvoiceForAppointment } from "../lib/billing";
 import { STAFF_ROLES } from "../lib/roles";
+import { sendEmail } from "../lib/email";
+import { sendWhatsAppAppointmentNotification } from "../lib/whatsapp";
+import { sendSMS } from "../lib/sms";
 
 const router = Router();
 
@@ -139,6 +142,57 @@ router.post("/create", async (req: Request, res: Response) => {
         status: "PENDING",
         reason: symptoms ?? description ?? "appointment for consultation"
       });
+    }
+
+    if (email) {
+      sendEmail({
+        toEmail: email,
+        toName: full_name,
+        subject: `Appointment Confirmed - Code: ${appointmentCode}`,
+        htmlContent: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #f0f0f0; border-radius: 12px;">
+            <h2 style="color: #0d7550;">Appointment Confirmation</h2>
+            <p>Dear <strong>${full_name}</strong>,</p>
+            <p>Your appointment has been successfully scheduled at <strong>Medilink Digital Health Care</strong>.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 6px 0; color: #666;">Appointment Code:</td>
+                <td style="padding: 6px 0; font-weight: bold;">${appointmentCode}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #666;">Department:</td>
+                <td style="padding: 6px 0; font-weight: bold;">${department}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #666;">Date:</td>
+                <td style="padding: 6px 0; font-weight: bold;">${preferred_date}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #666;">Time:</td>
+                <td style="padding: 6px 0; font-weight: bold;">${preferred_time || "Pending Doctor Assignment"}</td>
+              </tr>
+            </table>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p>Please keep this appointment code safe. You can track your status or check prescriptions anytime from the patient portal.</p>
+            <p>Thank you for choosing Medilink!</p>
+          </div>
+        `,
+      }).catch((err) => console.error("Brevo email appointment confirm failure:", err));
+    }
+    if (phone) {
+      sendWhatsAppAppointmentNotification({
+        recipientPhone: phone,
+        patientName: full_name,
+        appointmentCode,
+        date: preferred_date,
+        time: preferred_time || "Pending",
+      }).catch((err) => console.error("WhatsApp appointment notification failure:", err));
+
+      sendSMS({
+        recipientPhone: phone,
+        message: `Hello ${full_name}, your Medilink appointment in ${department} is confirmed for ${preferred_date}. Code: ${appointmentCode}`,
+      }).catch((err) => console.error("SMS appointment notification failure:", err));
     }
 
     res.json({

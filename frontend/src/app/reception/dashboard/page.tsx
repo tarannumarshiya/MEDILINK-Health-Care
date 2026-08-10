@@ -457,7 +457,7 @@ export default function ReceptionDashboardPage() {
                           <h3 className="text-xl font-black text-slate-950">{doc.full_name}</h3>
                           <p className="mt-1 font-bold text-teal-700">{doc.department_name}</p>
                           <p className="mt-1 text-sm text-slate-500">
-                            {doc.qualification ?? "—"} • {doc.experience_years}+ yrs • ₹{doc.consultation_fee}
+                            {doc.qualification ?? "—"} • {doc.experience_years}+ yrs • ৳{doc.consultation_fee}
                           </p>
                         </div>
                         <button

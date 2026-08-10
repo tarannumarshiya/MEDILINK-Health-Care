@@ -61,6 +61,14 @@ export interface BackendConfig {
   razorpayKeySecret: string;
   demoMode: boolean;
   paymentMode: PaymentMode;
+  brevoApiKey: string;
+  brevoSenderEmail: string;
+  brevoSenderName: string;
+  metaWaPhoneNumberId: string;
+  metaWaAccessToken: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
 }
 
 export const config: BackendConfig = {
@@ -78,6 +86,14 @@ export const config: BackendConfig = {
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
   demoMode,
   paymentMode,
+  brevoApiKey: process.env.BREVO_API_KEY ?? "",
+  brevoSenderEmail: process.env.BREVO_SENDER_EMAIL ?? "",
+  brevoSenderName: process.env.BREVO_SENDER_NAME ?? "Medilink Digital Health Care",
+  metaWaPhoneNumberId: process.env.META_WA_PHONE_NUMBER_ID ?? "",
+  metaWaAccessToken: process.env.META_WA_ACCESS_TOKEN ?? "",
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? "",
+  twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER ?? "",
 };
 
 /** Validate required env vars; product mode is stricter. */

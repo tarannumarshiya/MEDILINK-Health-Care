@@ -60,6 +60,24 @@ if (-not (Get-Command psql -ErrorAction SilentlyContinue)) {
 }
 
 # ---------------------------------------------------------------------------
+# Safety checks (No production execution)
+# ---------------------------------------------------------------------------
+if ($DatabaseUrl -like "*prod*") {
+  Write-Error "CRITICAL WARNING: Database URL appears to point to a production environment. Reset aborted."
+  exit 1
+}
+
+Write-Host "--------------------------------------------------------" -ForegroundColor Red
+Write-Host " WARNING: This will completely WIPE and reset the database!" -ForegroundColor Red
+Write-Host " This action will delete all data across all tables." -ForegroundColor Red
+Write-Host "--------------------------------------------------------" -ForegroundColor Red
+$userInput = Read-Host "To confirm, type 'yes'"
+if ($userInput -ne "yes") {
+  Write-Host "Wipe operation cancelled by user." -ForegroundColor Yellow
+  exit 0
+}
+
+# ---------------------------------------------------------------------------
 # SQL fragments
 # ---------------------------------------------------------------------------
 

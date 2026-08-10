@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, CheckCircle, Eye, EyeOff } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 function ResetPasswordInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -16,11 +15,26 @@ function ResetPasswordInner() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState(false);
 
-  // Check if we have the necessary tokens from the URL
-  const accessToken = searchParams.get("access_token");
-  const refreshToken = searchParams.get("refresh_token");
-  const hasValidToken = !!(accessToken && refreshToken);
+  useEffect(() => {
+    // Supabase automatically exchanges the token from the URL hash
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setSessionReady(true);
+      } else {
+        // Wait briefly for hash-based token exchange
+        setTimeout(() => {
+          supabase.auth.getSession().then(({ data: d2 }) => {
+            if (d2.session) setSessionReady(true);
+            else setSessionError(true);
+          });
+        }, 1200);
+      }
+    });
+  }, []);
 
   const validatePassword = (pwd: string): string | null => {
     if (!pwd) return "Password is required";
@@ -64,9 +78,18 @@ function ResetPasswordInner() {
       }
 
       setSuccess(true);
-      // Redirect to login after 3 seconds
+      // Detect user role to route back to appropriate login
+      const { data: { user } } = await supabase.auth.getUser();
+      let targetLogin = "/login";
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+        if (profile?.role === "PATIENT") {
+          targetLogin = "/patient/login";
+        }
+      }
+      
       setTimeout(() => {
-        router.push("/login");
+        router.push(targetLogin);
       }, 3000);
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
@@ -74,16 +97,16 @@ function ResetPasswordInner() {
     }
   };
 
-  if (!hasValidToken) {
+  if (sessionError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--canvas)] p-4">
         <div className="w-full max-w-md rounded-3xl bg-white p-10 text-center shadow-[var(--shadow-lg)] border border-[var(--line)]">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-            <span className="text-4xl">⚠️</span>
+            <AlertCircle className="h-8 w-8 text-red-500" />
           </div>
-          <h2 className="font-display text-2xl font-black text-[var(--ink)]">Invalid Link</h2>
+          <h2 className="font-display text-2xl font-black text-[var(--ink)]">Invalid or Expired Link</h2>
           <p className="mt-3 text-sm text-[var(--ink-2)] leading-6">
-            {error}
+            This reset link has expired or is invalid. Reset links are valid for 60 minutes.
           </p>
           <Link href="/forgot-password"
             className="btn-primary mt-8 block rounded-full py-4 font-black text-white text-center">
@@ -98,7 +121,7 @@ function ResetPasswordInner() {
     );
   }
 
-  if (!accessToken && !refreshToken) {
+  if (!sessionReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--canvas)]">
         <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" />
@@ -116,12 +139,8 @@ function ResetPasswordInner() {
           </div>
           <h2 className="font-display text-2xl font-black text-[var(--ink)]">Password Updated!</h2>
           <p className="mt-3 text-sm text-[var(--ink-2)] leading-6">
-            Your password has been successfully updated. Redirecting to login...
+            Your password has been successfully updated. Redirecting to login page...
           </p>
-          <Link href="/login"
-            className="btn-primary mt-8 block rounded-full py-4 font-black text-white text-center">
-            Go to Login
-          </Link>
         </div>
       </div>
     );
@@ -148,7 +167,7 @@ function ResetPasswordInner() {
             </div>
             <div>
               <p className="text-[15px] font-black tracking-widest text-[var(--ink)] uppercase">Medilink</p>
-              <p className="text-[9px] font-bold uppercase tracking-[.22em] text-[var(--muted)]">Staff Portal</p>
+              <p className="text-[9px] font-bold uppercase tracking-[.22em] text-[var(--muted)]">Health Care</p>
             </div>
           </Link>
 
@@ -183,7 +202,7 @@ function ResetPasswordInner() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter new password"
-                  className={`input-field pr-10 ${error && error.includes("password") ? "border-red-400" : ""}`}
+                  className="w-full rounded-2xl border border-slate-300 p-3.5 pr-10 text-sm outline-none focus:border-teal-500"
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError(""); }}
                   autoFocus
@@ -225,7 +244,7 @@ function ResetPasswordInner() {
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Re-enter new password"
-                  className={`input-field pr-10 ${error && error.includes("match") ? "border-red-400" : ""}`}
+                  className="w-full rounded-2xl border border-slate-300 p-3.5 pr-10 text-sm outline-none focus:border-teal-500"
                   value={confirmPassword}
                   onChange={e => { setConfirmPassword(e.target.value); setError(""); }}
                   autoComplete="new-password"
@@ -242,7 +261,7 @@ function ResetPasswordInner() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full rounded-full py-4 font-black text-white flex items-center justify-center gap-2 disabled:opacity-60">
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-teal-600 py-4 font-black text-white hover:bg-teal-700 disabled:opacity-60">
               {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Update Password"}
             </button>
           </form>

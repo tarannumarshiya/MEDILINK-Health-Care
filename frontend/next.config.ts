@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
     const backendUrl = process.env.EXPRESS_BACKEND_URL ?? "http://localhost:4000";
     return [
       { source: "/api/:path*", destination: `${backendUrl}/api/:path*` },
+      { source: "/health", destination: `${backendUrl}/health` },
     ];
   },
 };

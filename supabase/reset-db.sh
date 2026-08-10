@@ -38,6 +38,24 @@ if ! command -v psql &>/dev/null; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Safety checks (No production execution)
+# ---------------------------------------------------------------------------
+if [[ "$DATABASE_URL" == *prod* ]]; then
+  echo "CRITICAL ERROR: Database URL appears to point to a production environment. Reset aborted."
+  exit 1
+fi
+
+echo "--------------------------------------------------------"
+echo " WARNING: This will completely WIPE and reset the database!"
+echo " This action will delete all data across all tables."
+echo "--------------------------------------------------------"
+read -p "To confirm, type 'yes': " user_input
+if [ "$user_input" != "yes" ]; then
+  echo "Wipe operation cancelled by user."
+  exit 0
+fi
+
 DRY_RUN="${DRY_RUN:-0}"
 
 # ---------------------------------------------------------------------------

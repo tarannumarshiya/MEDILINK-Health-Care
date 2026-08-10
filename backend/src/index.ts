@@ -24,6 +24,11 @@ import notificationRoutes from "./routes/notifications";
 import auditRoutes        from "./routes/audit";
 
 
+import { requestLogger } from "./middleware/logger";
+import { errorHandler } from "./middleware/errorHandler";
+import { idempotency } from "./middleware/idempotency";
+import { requestTimeout } from "./middleware/timeout";
+
 const app  = express();
 const PORT = config.port;
 
@@ -32,6 +37,12 @@ validateRequiredConfig();
 
 // Trust proxy for rate limiting behind Render/Vercel
 app.set("trust proxy", 1);
+
+// ─── Request Logger ───────────────────────────────────────────────────────────
+app.use(requestLogger);
+
+// ─── Idempotency Controls ──────────────────────────────────────────────────────
+app.use(idempotency);
 
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet({
@@ -56,8 +67,8 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ─── Global API rate limit ────────────────────────────────────────────────────
-app.use("/api", apiLimiter);
+// ─── Global API rate limit and request timeout ────────────────────────────────
+app.use("/api", requestTimeout(30000), apiLimiter);
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
@@ -88,10 +99,7 @@ app.use("/api/*", (_req, res) => {
 });
 
 // ─── Global error handler ─────────────────────────────────────────────────────
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("[Unhandled error]", err.message);
-  res.status(500).json({ error: "Internal server error" });
-});
+app.use(errorHandler);
 
 // ─── Root — API landing page ──────────────────────────────────────────────────
 app.get("/", (_req, res) => {
