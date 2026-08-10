@@ -8,22 +8,22 @@ import { apiLimiter, authLimiter, bookingLimiter } from "./middleware/security";
 import swaggerUi from "swagger-ui-express";
 import openapiSpec from "./openapi.json";
 
-import adminRoutes        from "./routes/admin";
-import appointmentRoutes  from "./routes/appointments";
-import doctorRoutes       from "./routes/doctor";
-import patientRoutes      from "./routes/patients";
-import contactRoutes      from "./routes/contact";
-import paymentRoutes      from "./routes/payment";
-import pharmacyRoutes     from "./routes/pharmacy";
+import adminRoutes from "./routes/admin";
+import appointmentRoutes from "./routes/appointments";
+import doctorRoutes from "./routes/doctor";
+import patientRoutes from "./routes/patients";
+import contactRoutes from "./routes/contact";
+import paymentRoutes from "./routes/payment";
+import pharmacyRoutes from "./routes/pharmacy";
 import reminderRoutes from "./routes/reminders";
-import labRoutes          from "./routes/lab";
-import billingRoutes      from "./routes/billing";
-import insuranceRoutes    from "./routes/insurance";
-import emergencyRoutes    from "./routes/emergency";
+import labRoutes from "./routes/lab";
+import billingRoutes from "./routes/billing";
+import insuranceRoutes from "./routes/insurance";
+import emergencyRoutes from "./routes/emergency";
 import telemedicineRoutes from "./routes/telemedicine";
-import receptionRoutes    from "./routes/reception";
+import receptionRoutes from "./routes/reception";
 import notificationRoutes from "./routes/notifications";
-import auditRoutes        from "./routes/audit";
+import auditRoutes from "./routes/audit";
 
 
 import { requestLogger } from "./middleware/logger";
@@ -31,7 +31,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { idempotency } from "./middleware/idempotency";
 import { requestTimeout } from "./middleware/timeout";
 
-const app  = express();
+const app = express();
 const PORT = config.port;
 
 // Fail fast when required configuration is missing.
@@ -67,11 +67,12 @@ app.use(cors({
 }));
 
 app.use((req, res, next) => {
-  const isContact = (req.originalUrl || req.path || "").startsWith("/api/contact");
-  if (isContact && req.headers["content-length"]) {
+  if (req.path === "/api/contact" && req.headers["content-length"]) {
     const contentLength = parseInt(req.headers["content-length"], 10);
     if (contentLength > 100 * 1024) {
-      return res.status(413).json({ error: "Payload Too Large" });
+      const err = new Error("request entity too large");
+      (err as any).status = 413;
+      return next(err);
     }
   }
   next();
@@ -102,22 +103,22 @@ app.all("/health", (req, res) => {
 });
 
 // ─── Routes (auth endpoints get stricter limits) ──────────────────────────────
-app.use("/api/admin",                adminRoutes);
-app.use("/api/appointments",         bookingLimiter, appointmentRoutes);
-app.use("/api/doctor",               doctorRoutes);
-app.use("/api/patients",             authLimiter, patientRoutes);
-app.use("/api/contact",              contactRoutes);
-app.use("/api/payment",              paymentRoutes);
-app.use("/api/pharmacy",             pharmacyRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/appointments", bookingLimiter, appointmentRoutes);
+app.use("/api/doctor", doctorRoutes);
+app.use("/api/patients", authLimiter, patientRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/payment", paymentRoutes);
+app.use("/api/pharmacy", pharmacyRoutes);
 app.use("/api/reminders", reminderRoutes);
-app.use("/api/lab",                  labRoutes);
-app.use("/api/billing",              billingRoutes);
-app.use("/api/insurance",            insuranceRoutes);
-app.use("/api/emergency",            emergencyRoutes);
-app.use("/api/telemedicine",         telemedicineRoutes);
-app.use("/api/reception",            receptionRoutes);
-app.use("/api/notifications",        notificationRoutes);
-app.use("/api/audit-logs",           auditRoutes);
+app.use("/api/lab", labRoutes);
+app.use("/api/billing", billingRoutes);
+app.use("/api/insurance", insuranceRoutes);
+app.use("/api/emergency", emergencyRoutes);
+app.use("/api/telemedicine", telemedicineRoutes);
+app.use("/api/reception", receptionRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/audit-logs", auditRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use("/api/*", (_req, res) => {
@@ -136,48 +137,58 @@ app.get("/", (req, res) => {
   const uptimeStr = `${h}h ${m}m ${s}s`;
 
   const routes = [
-    { group: "Admin",         base: "/api/admin",          endpoints: [
-      { method: "GET",    path: "/api/admin/departments",             desc: "List all departments" },
-      { method: "POST",   path: "/api/admin/departments",             desc: "Create department" },
-      { method: "PATCH",  path: "/api/admin/departments",             desc: "Toggle department active state" },
-      { method: "GET",    path: "/api/admin/doctors",                 desc: "List active doctors" },
-      { method: "POST",   path: "/api/admin/doctors",                 desc: "Register doctor" },
-      { method: "PATCH",  path: "/api/admin/doctors",                 desc: "Update doctor availability" },
-      { method: "POST",   path: "/api/admin/appointments/approve",    desc: "Approve appointment" },
-      { method: "POST",   path: "/api/admin/appointments/reject",     desc: "Reject appointment" },
-      { method: "PATCH",  path: "/api/admin/appointments",            desc: "Assign doctor to appointment" },
-      { method: "GET",    path: "/api/admin/contact-messages",        desc: "List contact messages" },
-      { method: "PATCH",  path: "/api/admin/contact-messages",        desc: "Mark message read" },
-    ]},
-    { group: "Appointments",  base: "/api/appointments",   endpoints: [
-      { method: "POST",   path: "/api/appointments/create",           desc: "Book appointment" },
-      { method: "POST",   path: "/api/appointments/track",            desc: "Track appointment by code" },
-    ]},
-    { group: "Doctor",        base: "/api/doctor",         endpoints: [
-      { method: "GET",    path: "/api/doctor/queue",                  desc: "Get doctor's appointment queue" },
-      { method: "PATCH",  path: "/api/doctor/start-consultation",     desc: "Start consultation" },
-      { method: "POST",   path: "/api/doctor/prescription",           desc: "Write prescription" },
-      { method: "GET",    path: "/api/doctor/lab-report",             desc: "Get lab report for appointment" },
-      { method: "PATCH",  path: "/api/doctor/complete",               desc: "Complete appointment" },
-      { method: "GET",    path: "/api/doctor/patient-history",        desc: "Get patient history" },
-    ]},
-    { group: "Patients",      base: "/api/patients",       endpoints: [
-      { method: "POST",   path: "/api/patients/register",             desc: "Register patient" },
-    ]},
-    { group: "Pharmacy",      base: "/api/pharmacy",       endpoints: [
-      { method: "GET",    path: "/api/pharmacy/medicines",            desc: "List medicines" },
-      { method: "POST",   path: "/api/pharmacy/medicines",            desc: "Add medicine" },
-      { method: "GET",    path: "/api/pharmacy/inventory",            desc: "Get inventory" },
-      { method: "PATCH",  path: "/api/pharmacy/inventory",            desc: "Update stock" },
-      { method: "GET",    path: "/api/pharmacy/orders",               desc: "List orders" },
-      { method: "POST",   path: "/api/pharmacy/orders",               desc: "Create order" },
-      { method: "PATCH",  path: "/api/pharmacy/orders",               desc: "Update order status" },
-      { method: "GET",    path: "/api/pharmacy/queue",                desc: "Fulfillment queue" },
-      { method: "PATCH",  path: "/api/pharmacy/queue",                desc: "Update queue item" },
-      { method: "GET",    path: "/api/pharmacy/vendors",              desc: "List vendors" },
-      { method: "POST",   path: "/api/pharmacy/vendors",              desc: "Add vendor" },
-      { method: "POST",   path: "/api/pharmacy/questions",            desc: "Submit pharmacy query" },
-    ]},
+    {
+      group: "Admin", base: "/api/admin", endpoints: [
+        { method: "GET", path: "/api/admin/departments", desc: "List all departments" },
+        { method: "POST", path: "/api/admin/departments", desc: "Create department" },
+        { method: "PATCH", path: "/api/admin/departments", desc: "Toggle department active state" },
+        { method: "GET", path: "/api/admin/doctors", desc: "List active doctors" },
+        { method: "POST", path: "/api/admin/doctors", desc: "Register doctor" },
+        { method: "PATCH", path: "/api/admin/doctors", desc: "Update doctor availability" },
+        { method: "POST", path: "/api/admin/appointments/approve", desc: "Approve appointment" },
+        { method: "POST", path: "/api/admin/appointments/reject", desc: "Reject appointment" },
+        { method: "PATCH", path: "/api/admin/appointments", desc: "Assign doctor to appointment" },
+        { method: "GET", path: "/api/admin/contact-messages", desc: "List contact messages" },
+        { method: "PATCH", path: "/api/admin/contact-messages", desc: "Mark message read" },
+      ]
+    },
+    {
+      group: "Appointments", base: "/api/appointments", endpoints: [
+        { method: "POST", path: "/api/appointments/create", desc: "Book appointment" },
+        { method: "POST", path: "/api/appointments/track", desc: "Track appointment by code" },
+      ]
+    },
+    {
+      group: "Doctor", base: "/api/doctor", endpoints: [
+        { method: "GET", path: "/api/doctor/queue", desc: "Get doctor's appointment queue" },
+        { method: "PATCH", path: "/api/doctor/start-consultation", desc: "Start consultation" },
+        { method: "POST", path: "/api/doctor/prescription", desc: "Write prescription" },
+        { method: "GET", path: "/api/doctor/lab-report", desc: "Get lab report for appointment" },
+        { method: "PATCH", path: "/api/doctor/complete", desc: "Complete appointment" },
+        { method: "GET", path: "/api/doctor/patient-history", desc: "Get patient history" },
+      ]
+    },
+    {
+      group: "Patients", base: "/api/patients", endpoints: [
+        { method: "POST", path: "/api/patients/register", desc: "Register patient" },
+      ]
+    },
+    {
+      group: "Pharmacy", base: "/api/pharmacy", endpoints: [
+        { method: "GET", path: "/api/pharmacy/medicines", desc: "List medicines" },
+        { method: "POST", path: "/api/pharmacy/medicines", desc: "Add medicine" },
+        { method: "GET", path: "/api/pharmacy/inventory", desc: "Get inventory" },
+        { method: "PATCH", path: "/api/pharmacy/inventory", desc: "Update stock" },
+        { method: "GET", path: "/api/pharmacy/orders", desc: "List orders" },
+        { method: "POST", path: "/api/pharmacy/orders", desc: "Create order" },
+        { method: "PATCH", path: "/api/pharmacy/orders", desc: "Update order status" },
+        { method: "GET", path: "/api/pharmacy/queue", desc: "Fulfillment queue" },
+        { method: "PATCH", path: "/api/pharmacy/queue", desc: "Update queue item" },
+        { method: "GET", path: "/api/pharmacy/vendors", desc: "List vendors" },
+        { method: "POST", path: "/api/pharmacy/vendors", desc: "Add vendor" },
+        { method: "POST", path: "/api/pharmacy/questions", desc: "Submit pharmacy query" },
+      ]
+    },
     {
       group: "Medicine Reminders",
       base: "/api/reminders",
@@ -204,75 +215,97 @@ app.get("/", (req, res) => {
         }
       ]
     },
-    { group: "Lab",           base: "/api/lab",            endpoints: [
-      { method: "GET",    path: "/api/lab/queue",                     desc: "Get lab test queue" },
-      { method: "PATCH",  path: "/api/lab/update-status",             desc: "Update test status" },
-      { method: "POST",   path: "/api/lab/upload-report",             desc: "Upload lab report" },
-      { method: "GET",    path: "/api/lab/reports",                   desc: "List all reports" },
-    ]},
-    { group: "Billing",       base: "/api/billing",        endpoints: [
-      { method: "GET",    path: "/api/billing/invoices",              desc: "List invoices" },
-      { method: "POST",   path: "/api/billing/generate",              desc: "Generate invoice" },
-      { method: "PATCH",  path: "/api/billing/pay",                   desc: "Mark invoice paid" },
-      { method: "GET",    path: "/api/billing/revenue",               desc: "Revenue summary" },
-      { method: "GET",    path: "/api/billing/payments",              desc: "Payment history" },
-    ]},
-    { group: "Insurance",     base: "/api/insurance",      endpoints: [
-      { method: "GET",    path: "/api/insurance/claims",              desc: "List claims" },
-      { method: "POST",   path: "/api/insurance/create",              desc: "Submit claim" },
-      { method: "PATCH",  path: "/api/insurance/approve",             desc: "Approve claim" },
-      { method: "PATCH",  path: "/api/insurance/reject",              desc: "Reject claim" },
-    ]},
-    { group: "Emergency",     base: "/api/emergency",      endpoints: [
-      { method: "GET",    path: "/api/emergency/cases",               desc: "List emergency cases" },
-      { method: "POST",   path: "/api/emergency/create",              desc: "Create emergency case" },
-      { method: "PATCH",  path: "/api/emergency/update-status",       desc: "Update case status" },
-      { method: "PATCH",  path: "/api/emergency/assign-bed",          desc: "Assign bed to case" },
-    ]},
-    { group: "Telemedicine",  base: "/api/telemedicine",   endpoints: [
-      { method: "GET",    path: "/api/telemedicine/sessions",         desc: "List sessions" },
-      { method: "POST",   path: "/api/telemedicine/create",           desc: "Create session" },
-      { method: "PATCH",  path: "/api/telemedicine/update-status",    desc: "Update session status" },
-    ]},
-    { group: "Reception",     base: "/api/reception",      endpoints: [
-      { method: "GET",    path: "/api/reception/queue",               desc: "Reception queue" },
-      { method: "POST",   path: "/api/reception/walk-in",             desc: "Register walk-in patient" },
-      { method: "POST",   path: "/api/reception/check-in",            desc: "Check in patient" },
-      { method: "PATCH",  path: "/api/reception/walk-in-status",      desc: "Update walk-in status" },
-      { method: "PATCH",  path: "/api/reception/toggle-doctor",       desc: "Toggle doctor availability" },
-    ]},
-    { group: "Notifications", base: "/api/notifications",  endpoints: [
-      { method: "GET",    path: "/api/notifications",                 desc: "Get user notifications" },
-      { method: "POST",   path: "/api/notifications/create",          desc: "Create notification" },
-      { method: "PATCH",  path: "/api/notifications/read",            desc: "Mark notification(s) read" },
-    ]},
-    { group: "Payment",       base: "/api/payment",        endpoints: [
-      { method: "POST",   path: "/api/payment/create-order",          desc: "Create Razorpay order" },
-      { method: "POST",   path: "/api/payment/verify",                desc: "Verify payment signature" },
-    ]},
-    { group: "Contact",       base: "/api/contact",        endpoints: [
-      { method: "POST",   path: "/api/contact",                       desc: "Submit contact form" },
-    ]},
-    { group: "Audit",         base: "/api/audit-logs",     endpoints: [
-      { method: "GET",    path: "/api/audit-logs",                    desc: "Get audit logs (admin only)" },
-    ]},
-    { group: "Health",        base: "/health",             endpoints: [
-      { method: "GET",    path: "/health",                            desc: "Server health check" },
-    ]},
+    {
+      group: "Lab", base: "/api/lab", endpoints: [
+        { method: "GET", path: "/api/lab/queue", desc: "Get lab test queue" },
+        { method: "PATCH", path: "/api/lab/update-status", desc: "Update test status" },
+        { method: "POST", path: "/api/lab/upload-report", desc: "Upload lab report" },
+        { method: "GET", path: "/api/lab/reports", desc: "List all reports" },
+      ]
+    },
+    {
+      group: "Billing", base: "/api/billing", endpoints: [
+        { method: "GET", path: "/api/billing/invoices", desc: "List invoices" },
+        { method: "POST", path: "/api/billing/generate", desc: "Generate invoice" },
+        { method: "PATCH", path: "/api/billing/pay", desc: "Mark invoice paid" },
+        { method: "GET", path: "/api/billing/revenue", desc: "Revenue summary" },
+        { method: "GET", path: "/api/billing/payments", desc: "Payment history" },
+      ]
+    },
+    {
+      group: "Insurance", base: "/api/insurance", endpoints: [
+        { method: "GET", path: "/api/insurance/claims", desc: "List claims" },
+        { method: "POST", path: "/api/insurance/create", desc: "Submit claim" },
+        { method: "PATCH", path: "/api/insurance/approve", desc: "Approve claim" },
+        { method: "PATCH", path: "/api/insurance/reject", desc: "Reject claim" },
+      ]
+    },
+    {
+      group: "Emergency", base: "/api/emergency", endpoints: [
+        { method: "GET", path: "/api/emergency/cases", desc: "List emergency cases" },
+        { method: "POST", path: "/api/emergency/create", desc: "Create emergency case" },
+        { method: "PATCH", path: "/api/emergency/update-status", desc: "Update case status" },
+        { method: "PATCH", path: "/api/emergency/assign-bed", desc: "Assign bed to case" },
+      ]
+    },
+    {
+      group: "Telemedicine", base: "/api/telemedicine", endpoints: [
+        { method: "GET", path: "/api/telemedicine/sessions", desc: "List sessions" },
+        { method: "POST", path: "/api/telemedicine/create", desc: "Create session" },
+        { method: "PATCH", path: "/api/telemedicine/update-status", desc: "Update session status" },
+      ]
+    },
+    {
+      group: "Reception", base: "/api/reception", endpoints: [
+        { method: "GET", path: "/api/reception/queue", desc: "Reception queue" },
+        { method: "POST", path: "/api/reception/walk-in", desc: "Register walk-in patient" },
+        { method: "POST", path: "/api/reception/check-in", desc: "Check in patient" },
+        { method: "PATCH", path: "/api/reception/walk-in-status", desc: "Update walk-in status" },
+        { method: "PATCH", path: "/api/reception/toggle-doctor", desc: "Toggle doctor availability" },
+      ]
+    },
+    {
+      group: "Notifications", base: "/api/notifications", endpoints: [
+        { method: "GET", path: "/api/notifications", desc: "Get user notifications" },
+        { method: "POST", path: "/api/notifications/create", desc: "Create notification" },
+        { method: "PATCH", path: "/api/notifications/read", desc: "Mark notification(s) read" },
+      ]
+    },
+    {
+      group: "Payment", base: "/api/payment", endpoints: [
+        { method: "POST", path: "/api/payment/create-order", desc: "Create Razorpay order" },
+        { method: "POST", path: "/api/payment/verify", desc: "Verify payment signature" },
+      ]
+    },
+    {
+      group: "Contact", base: "/api/contact", endpoints: [
+        { method: "POST", path: "/api/contact", desc: "Submit contact form" },
+      ]
+    },
+    {
+      group: "Audit", base: "/api/audit-logs", endpoints: [
+        { method: "GET", path: "/api/audit-logs", desc: "Get audit logs (admin only)" },
+      ]
+    },
+    {
+      group: "Health", base: "/health", endpoints: [
+        { method: "GET", path: "/health", desc: "Server health check" },
+      ]
+    },
   ];
 
   const methodColor: Record<string, string> = {
-    GET:    "#10b981",
-    POST:   "#3b82f6",
-    PATCH:  "#f59e0b",
-    PUT:    "#8b5cf6",
+    GET: "#10b981",
+    POST: "#3b82f6",
+    PATCH: "#f59e0b",
+    PUT: "#8b5cf6",
     DELETE: "#ef4444",
   };
 
   const groupColors = [
-    "#6366f1","#0ea5e9","#10b981","#f59e0b","#ef4444",
-    "#8b5cf6","#ec4899","#14b8a6","#f97316","#84cc16",
-    "#06b6d4","#a855f7","#22c55e","#e11d48","#0284c7",
+    "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444",
+    "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#84cc16",
+    "#06b6d4", "#a855f7", "#22c55e", "#e11d48", "#0284c7",
   ];
 
   const routeCards = routes.map((group, gi) => {
@@ -340,11 +373,11 @@ app.get("/", (req, res) => {
     <!-- Stats bar -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
       ${[
-        ["🗂️", "Routes", routes.length.toString()],
-        ["⚡", "Endpoints", totalEndpoints.toString()],
-        ["⏱️", "Uptime", uptimeStr],
-        ["🌐", "Port", String(PORT)],
-      ].map(([icon, label, val]) => `
+      ["🗂️", "Routes", routes.length.toString()],
+      ["⚡", "Endpoints", totalEndpoints.toString()],
+      ["⏱️", "Uptime", uptimeStr],
+      ["🌐", "Port", String(PORT)],
+    ].map(([icon, label, val]) => `
       <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px 16px">
         <div style="font-size:18px">${icon}</div>
         <div style="font-size:22px;font-weight:800;color:#f1f5f9;margin-top:4px">${val}</div>
@@ -372,8 +405,7 @@ app.get("/", (req, res) => {
 </body>
 </html>`;
 
-  const acceptsHtml = req.headers.accept && req.headers.accept.startsWith("text/html") && !req.headers.accept.includes("application/json");
-  if (acceptsHtml) {
+  if (req.headers.accept && req.headers.accept.includes("text/html")) {
     res.setHeader("Content-Type", "text/html");
     res.send(html);
   } else {

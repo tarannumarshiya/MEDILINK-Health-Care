@@ -192,9 +192,6 @@ router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id || req.body.id || req.query.id;
 
     if (!id) {
-      if (!isStaff(profile?.role)) {
-        return res.status(403).json({ success: false, error: "Forbidden" });
-      }
       return res.status(400).json({ success: false, error: "Reminder ID is required" });
     }
 
@@ -261,9 +258,6 @@ router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id || req.body.id || req.query.id;
 
     if (!id) {
-      if (!isStaff(profile?.role)) {
-        return res.status(403).json({ success: false, error: "Forbidden" });
-      }
       return res.status(400).json({ success: false, error: "Reminder ID is required" });
     }
 

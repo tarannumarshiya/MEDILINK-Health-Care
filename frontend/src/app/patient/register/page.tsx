@@ -74,7 +74,8 @@ function PatientRegisterInner() {
     if (existing) {
       await supabase.from("patients").update({ profile_id:userId, full_name, age:Number(age), email, ...extra }).eq("id", existing.id);
     } else {
-      await supabase.from("patients").insert({ profile_id:userId, patient_code:"PAT-"+new Date().getFullYear()+"-"+Math.floor(100000+Math.random()*900000), full_name, age:Number(age), phone, email, ...extra });
+      const secureNum = typeof window !== 'undefined' && window.crypto ? (100000 + (window.crypto.getRandomValues(new Uint32Array(1))[0] % 900000)) : (100000 + (Date.now() % 900000));
+      await supabase.from("patients").insert({ profile_id:userId, patient_code:"PAT-"+new Date().getFullYear()+"-"+secureNum, full_name, age:Number(age), phone, email, ...extra });
     }
     setDone(true);
   };

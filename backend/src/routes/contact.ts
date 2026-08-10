@@ -6,38 +6,39 @@ const router = Router();
 // POST /api/contact
 router.post("/", async (req: Request, res: Response) => {
   try {
-    if (req.body && JSON.stringify(req.body).length > 100 * 1024) {
-      return void res.status(413).json({ error: "Payload Too Large" });
-    }
     const { full_name, email, phone, subject, message } = req.body;
 
     if (!full_name || !email || !subject || !message) {
-      return void res
-        .status(400)
-        .json({ error: "Name, email, subject and message are required" });
+      res.status(400).json({ error: "Name, email, subject and message are required" });
+      return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return void res.status(400).json({ error: "Invalid email format" });
+      res.status(400).json({ error: "Invalid email format" });
+      return;
     }
 
     if (/[<>]/g.test(full_name)) {
-      return void res.status(400).json({ error: "Name cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Name cannot contain HTML or script characters" });
+      return;
     }
 
     if (/[<>]/g.test(subject)) {
-      return void res.status(400).json({ error: "Subject cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Subject cannot contain HTML or script characters" });
+      return;
     }
 
     if (message && /[<>]/g.test(message)) {
-      return void res.status(400).json({ error: "Message cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Message cannot contain HTML or script characters" });
+      return;
     }
 
     if (phone) {
       const phoneDigits = phone.replace(/\D/g, "");
       if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-        return void res.status(400).json({ error: "Invalid phone number format" });
+        res.status(400).json({ error: "Invalid phone number format" });
+        return;
       }
     }
 
@@ -54,8 +55,10 @@ router.post("/", async (req: Request, res: Response) => {
       .select()
       .single();
 
-    if (error)
-      return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     res.json({ success: true, contact_message: data });
   } catch {

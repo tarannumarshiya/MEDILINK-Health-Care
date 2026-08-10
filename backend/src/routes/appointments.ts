@@ -38,43 +38,39 @@ router.post("/create", async (req: Request, res: Response) => {
       !department ||
       !preferred_date
     ) {
-      return void res.status(400).json({
+      res.status(400).json({
         error: "Name, age, phone, department and preferred date are required",
       });
+      return;
     }
 
     if (/[<>]/g.test(full_name)) {
-      return void res
-        .status(400)
-        .json({ error: "Name cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Name cannot contain HTML or script characters" });
+      return;
     }
 
     const phoneDigits = phone.replace(/\D/g, "");
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-      return void res
-        .status(400)
-        .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+      res.status(400).json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+      return;
     }
 
     const dateObj = new Date(preferred_date);
     if (isNaN(dateObj.getTime())) {
-      return void res
-        .status(400)
-        .json({ error: "Invalid date format" });
+      res.status(400).json({ error: "Invalid date format" });
+      return;
     }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (dateObj < today) {
-      return void res
-        .status(400)
-        .json({ error: "Preferred date cannot be in the past" });
+      res.status(400).json({ error: "Preferred date cannot be in the past" });
+      return;
     }
 
     if (preferred_time && !/^[0-2]?[0-9]:[0-5][0-9]$/.test(preferred_time)) {
-      return void res
-        .status(400)
-        .json({ error: "Invalid time format. Must be HH:MM." });
+      res.status(400).json({ error: "Invalid time format. Must be HH:MM." });
+      return;
     }
 
     // Resolve Department ID
@@ -85,9 +81,8 @@ router.post("/create", async (req: Request, res: Response) => {
       .maybeSingle();
 
     if (!deptRow) {
-      return void res
-        .status(400)
-        .json({ error: "Nonexistent department" });
+      res.status(400).json({ error: "Nonexistent department" });
+      return;
     }
 
     const department_id = deptRow.id;
@@ -123,18 +118,18 @@ router.post("/create", async (req: Request, res: Response) => {
           .single();
 
       if (patientError || !createdPatient) {
-        return void res.status(500).json({
+        res.status(500).json({
           error: patientError?.message ?? "Unable to register patient",
         });
+        return;
       }
 
       patient = createdPatient;
     }
 
     if (!patient) {
-      return void res
-        .status(500)
-        .json({ error: "Unable to resolve patient" });
+      res.status(500).json({ error: "Unable to resolve patient" });
+      return;
     }
 
     const { data: appointment, error: appointmentError } =
@@ -157,11 +152,12 @@ router.post("/create", async (req: Request, res: Response) => {
         .single();
 
     if (appointmentError || !appointment) {
-      return void res.status(500).json({
+      res.status(500).json({
         error:
           appointmentError?.message ??
           "Unable to create appointment",
       });
+      return;
     }
 
     if (department.toLowerCase() === "telemedicine") {
@@ -266,16 +262,18 @@ router.post("/track", async (req: Request, res: Response) => {
     const rawVal = req.body.search || req.body.appointment_code || req.query.search || req.query.appointment_code;
     
     if (typeof rawVal === "string" && rawVal.trim() === "" && rawVal.length > 0) {
-      return void res.status(400).json({
+      res.status(400).json({
         error: "Appointment reference is required",
       });
+      return;
     }
 
     const searchValue = String(rawVal || "").trim();
     if (!searchValue) {
-      return void res.status(404).json({
+      res.status(404).json({
         error: "No appointment found for the given reference",
       });
+      return;
     }
 
     // Only allow lookup by appointment_code — never by phone or email
@@ -289,19 +287,21 @@ router.post("/track", async (req: Request, res: Response) => {
       .maybeSingle();
 
     if (error) {
-      return void res.status(500).json({ error: "Unable to look up appointment" });
+      res.status(500).json({ error: "Unable to look up appointment" });
+      return;
     }
 
     if (!appointment) {
       // Generic not-found so we never reveal whether another user's record exists.
-      return void res.status(404).json({
+      res.status(404).json({
         error: "No appointment found for the given reference",
       });
+      return;
     }
 
 
     // Minimal public status only — no PII, medical or payment fields.
-    return void res.json({
+    res.json({
       success: true,
       data: {
         appointment_reference: appointment.appointment_code,
@@ -311,6 +311,7 @@ router.post("/track", async (req: Request, res: Response) => {
         demo_data: true,
       },
     });
+    return;
   } catch (error) {
     console.error(error);
 
@@ -338,12 +339,14 @@ router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) =>
     const id = req.params.id || req.body.id || req.query.id;
 
     if (!id || id === "undefined" || id === "") {
-      return void res.status(400).json({ error: "Appointment ID is required" });
+      res.status(400).json({ error: "Appointment ID is required" });
+      return;
     }
     const { accept, staff_pin } = req.body;
 
     if (accept === undefined || accept === null) {
-      return void res.status(400).json({ error: "accept field is required (true/false)" });
+      res.status(400).json({ error: "accept field is required (true/false)" });
+      return;
     }
 
     const { data: appointment, error: appointmentError } = await getServiceClient()
@@ -353,16 +356,19 @@ router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) =>
       .single();
 
     if (appointmentError || !appointment) {
-      return void res.status(404).json({ error: "Appointment not found" });
+      res.status(404).json({ error: "Appointment not found" });
+      return;
     }
 
     if (appointment.status !== "PENDING_PATIENT_APPROVAL") {
-      return void res.status(400).json({ error: "Appointment is not pending approval" });
+      res.status(400).json({ error: "Appointment is not pending approval" });
+      return;
     }
 
     // Ownership check: patient can only consent to their own appointment.
     if (!profile) {
-      return void res.status(403).json({ error: "Forbidden" });
+      res.status(403).json({ error: "Forbidden" });
+      return;
     }
     const isStaffRole = (STAFF_ROLES_FOR_CONSENT as string[]).includes(profile.role ?? "");
 
@@ -370,16 +376,19 @@ router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) =>
     // provide a staff PIN (last 4 digits of their employee_id) for audit trail.
     if (isStaffRole) {
       if (profile.is_active === false) {
-        return void res.status(403).json({ error: "Forbidden" });
+        res.status(403).json({ error: "Forbidden" });
+        return;
       }
       // Staff must confirm identity with their PIN.
       // The PIN is the last 4 characters of their employee_id.
       const expectedPin = profile.employee_id ? profile.employee_id.slice(-4) : null;
       if (!staff_pin) {
-        return void res.status(400).json({ error: "Staff PIN is required for consent actions" });
+        res.status(400).json({ error: "Staff PIN is required for consent actions" });
+        return;
       }
       if (expectedPin && staff_pin !== expectedPin) {
-        return void res.status(403).json({ error: "Invalid staff PIN" });
+        res.status(403).json({ error: "Invalid staff PIN" });
+        return;
       }
     }
 
@@ -393,8 +402,8 @@ router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) =>
         .maybeSingle();
 
       if (!ownedPatient) {
-        // Generic 403 — never reveal whether the appointment exists for another patient.
-        return void res.status(403).json({ error: "Forbidden" });
+        res.status(403).json({ error: "Forbidden" });
+        return;
       }
     }
 
@@ -425,7 +434,8 @@ router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) =>
         .eq("id", id);
 
       if (updateError) {
-        return void res.status(500).json({ error: updateError.message });
+        res.status(500).json({ error: updateError.message });
+        return;
       }
     } else {
       await getServiceClient()

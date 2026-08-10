@@ -27,8 +27,10 @@ router.get("/queue", requireAuth,
         .eq("profile_id", user.id)
         .single();
 
-      if (doctorError || !doctor)
-        return void res.status(404).json({ error: "Doctor record not found" });
+      if (doctorError || !doctor) {
+        res.status(404).json({ error: "Doctor record not found" });
+        return;
+      }
 
       const department = (Array.isArray(doctor.departments)
         ? doctor.departments[0] : doctor.departments) as { id: string; name: string } | null;
@@ -44,7 +46,10 @@ router.get("/queue", requireAuth,
         .not("status", "in", '("REJECTED","cancelled")')
         .order("created_at", { ascending: true });
 
-      if (error) return void res.status(500).json({ error: error.message });
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
 
       // Fetch lab reports from both legacy lab_tests/lab_reports and current lab_orders.
       const apptIds = (appointments ?? []).map((a: any) => a.id);
@@ -90,8 +95,10 @@ router.patch("/start-consultation", requireAuth,
   async (req: Request, res: Response) => {
     try {
       const { appointmentId } = req.body;
-      if (!appointmentId)
-        return void res.status(400).json({ error: "Appointment ID is required" });
+      if (!appointmentId) {
+        res.status(400).json({ error: "Appointment ID is required" });
+        return;
+      }
 
       const user = (req as any).user;
       const { data: doctor } = await serviceClient
@@ -107,7 +114,10 @@ router.patch("/start-consultation", requireAuth,
         .eq("id", appointmentId)
         .select().single();
 
-      if (error) return void res.status(500).json({ error: error.message });
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
 
       await serviceClient.from("audit_logs").insert({
         action: "CONSULTATION_STARTED",
@@ -132,8 +142,10 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       const user = (req as any).user;
       const profile = (req as any).profile;
 
-      if (!profile.is_active)
-        return void res.status(403).json({ error: "Doctor access only" });
+      if (!profile.is_active) {
+        res.status(403).json({ error: "Doctor access only" });
+        return;
+      }
 
       type MedicineItem = {
         medicine_name: string;
@@ -151,30 +163,40 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
       };
       const wantsLab = Boolean(labRequired || labTestName?.trim());
 
-      if (!appointmentId || !notes)
-        return void res.status(400).json({ error: "Appointment and prescription notes are required" });
-      if (!medicines || medicines.length === 0)
-        return void res.status(400).json({ error: "At least one medicine is required" });
+      if (!appointmentId || !notes) {
+        res.status(400).json({ error: "Appointment and prescription notes are required" });
+        return;
+      }
+      if (!medicines || medicines.length === 0) {
+        res.status(400).json({ error: "At least one medicine is required" });
+        return;
+      }
 
       if (/[<>]/g.test(notes)) {
-        return void res.status(400).json({ error: "Prescription notes cannot contain HTML or script characters" });
+        res.status(400).json({ error: "Prescription notes cannot contain HTML or script characters" });
+        return;
       }
 
       for (const item of medicines) {
         if (item.quantity !== undefined && (isNaN(Number(item.quantity)) || Number(item.quantity) <= 0)) {
-          return void res.status(400).json({ error: "Medicine quantity must be positive" });
+          res.status(400).json({ error: "Medicine quantity must be positive" });
+          return;
         }
       }
 
       const { data: doctor, error: doctorError } = await supabase
         .from("doctors").select("id, consultation_fee").eq("profile_id", user.id).single();
-      if (doctorError || !doctor)
-        return void res.status(404).json({ error: "Doctor record not found" });
+      if (doctorError || !doctor) {
+        res.status(404).json({ error: "Doctor record not found" });
+        return;
+      }
 
       const { data: appointment, error: apptError } = await serviceClient
         .from("appointments").select("id, patient_id, patient_name").eq("id", appointmentId).single();
-      if (apptError || !appointment)
-        return void res.status(404).json({ error: "Appointment not found" });
+      if (apptError || !appointment) {
+        res.status(404).json({ error: "Appointment not found" });
+        return;
+      }
 
       // 1. Save prescription
       const { data: prescription, error: prescriptionError } = await serviceClient
@@ -182,8 +204,10 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
         .insert({ appointment_id: appointmentId, doctor_id: doctor.id, prescription_notes: notes, status: "ACTIVE" })
         .select().single();
 
-      if (prescriptionError || !prescription)
-        return void res.status(500).json({ error: prescriptionError?.message ?? "Prescription creation failed" });
+      if (prescriptionError || !prescription) {
+        res.status(500).json({ error: prescriptionError?.message ?? "Prescription creation failed" });
+        return;
+      }
 
       // 2. Save prescription items
       const { error: itemsError } = await serviceClient
@@ -196,8 +220,10 @@ router.post("/prescription", requireAuth, requireRole(DOCTOR_ROLES),
           instructions: item.instructions ?? null,
         })));
 
-      if (itemsError)
-        return void res.status(500).json({ error: itemsError.message });
+      if (itemsError) {
+        res.status(500).json({ error: itemsError.message });
+        return;
+      }
 
       // 3. Update appointment status
       const nextStatus = wantsLab ? "LAB_REQUESTED" : "PRESCRIPTION_READY";
@@ -290,14 +316,18 @@ router.get("/lab-report", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const { appointment_id } = req.query;
-      if (!appointment_id)
-        return void res.status(400).json({ error: "appointment_id required" });
+      if (!appointment_id) {
+        res.status(400).json({ error: "appointment_id required" });
+        return;
+      }
 
       const { data: labTest } = await serviceClient
         .from("lab_tests").select("id").eq("appointment_id", String(appointment_id)).maybeSingle();
 
-      if (!labTest)
-        return void res.json({ success: true, report: null });
+      if (!labTest) {
+        res.json({ success: true, report: null });
+        return;
+      }
 
       const { data: report } = await serviceClient
         .from("lab_reports").select("*").eq("lab_test_id", labTest.id).maybeSingle();
@@ -314,15 +344,20 @@ router.patch("/complete", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const { appointmentId } = req.body;
-      if (!appointmentId)
-        return void res.status(400).json({ error: "appointmentId required" });
+      if (!appointmentId) {
+        res.status(400).json({ error: "appointmentId required" });
+        return;
+      }
 
       const { data, error } = await serviceClient
         .from("appointments")
         .update({ status: "COMPLETED", updated_at: new Date().toISOString() })
         .eq("id", appointmentId).select().single();
 
-      if (error) return void res.status(500).json({ error: error.message });
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
 
       await serviceClient.from("audit_logs").insert({
         action: "CONSULTATION_COMPLETED",
@@ -344,7 +379,10 @@ router.get("/patient-history", requireAuth, requireRole(DOCTOR_ROLES),
   async (req: Request, res: Response) => {
     try {
       const patientId = String(req.query.patient_id ?? "");
-      if (!patientId) return void res.status(400).json({ error: "patient_id required" });
+      if (!patientId) {
+        res.status(400).json({ error: "patient_id required" });
+        return;
+      }
 
       const [appointmentsRes, prescriptionsRes, labTestsRes, recordsRes] = await Promise.all([
         serviceClient.from("appointments").select("id,appointment_code,department,preferred_date,preferred_time,status,symptoms,prescription_text,lab_report_url,created_at").eq("patient_id", patientId).order("created_at", { ascending: false }),

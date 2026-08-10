@@ -26,7 +26,10 @@ router.get("/departments", async (req: Request, res: Response) => {
     .select("id, name, description, is_active, created_at")
     .order("created_at", { ascending: false });
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
   res.json({ success: true, departments: data ?? [] });
 });
@@ -35,8 +38,10 @@ router.post("/departments", requireAuth, requireRole(ADMIN_ROLES), async (req: R
   const supabase = createRequestClient(req);
   const { name, description } = req.body;
 
-  if (!name)
-    return void res.status(400).json({ error: "Department name is required" });
+  if (!name) {
+    res.status(400).json({ error: "Department name is required" });
+    return;
+  }
 
   const { data, error } = await supabase
     .from("departments")
@@ -44,7 +49,10 @@ router.post("/departments", requireAuth, requireRole(ADMIN_ROLES), async (req: R
     .select()
     .single();
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.json({ success: true, department: data });
 });
 
@@ -52,8 +60,10 @@ router.patch("/departments", requireAuth, requireRole(ADMIN_ROLES), async (req: 
   const supabase = createRequestClient(req);
   const { id, name, description, is_active } = req.body;
 
-  if (!id)
-    return void res.status(400).json({ error: "Department ID is required" });
+  if (!id) {
+    res.status(400).json({ error: "Department ID is required" });
+    return;
+  }
 
   const payload: Record<string, unknown> = {};
   if (name !== undefined) payload.name = name;
@@ -67,7 +77,10 @@ router.patch("/departments", requireAuth, requireRole(ADMIN_ROLES), async (req: 
     .select()
     .single();
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.json({ success: true, department: data });
 });
 
@@ -88,7 +101,10 @@ router.get("/doctors", async (req: Request, res: Response) => {
     )
     .order("created_at", { ascending: false });
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
 
   const doctorsWithFlatten = (data ?? []).map((doctor: any) => {
@@ -135,8 +151,10 @@ router.post("/doctors", requireAuth, requireRole(ADMIN_ROLES), async (req: Reque
     consultation_fee,
   } = req.body;
 
-  if (!department_id)
-    return void res.status(400).json({ error: "Department is required" });
+  if (!department_id) {
+    res.status(400).json({ error: "Department is required" });
+    return;
+  }
 
   // Resolve profile_id via service role (bypasses RLS — same as original)
   let profile_id = explicitProfileId ?? null;
@@ -149,11 +167,13 @@ router.post("/doctors", requireAuth, requireRole(ADMIN_ROLES), async (req: Reque
     profile_id = prof?.id ?? null;
   }
 
-  if (!profile_id)
-    return void res.status(404).json({
+  if (!profile_id) {
+    res.status(404).json({
       error:
         "No profile found for that email. Create the staff account in User Mgmt first.",
     });
+    return;
+  }
 
   const supabase = createRequestClient(req);
   const { data, error } = await supabase
@@ -169,7 +189,10 @@ router.post("/doctors", requireAuth, requireRole(ADMIN_ROLES), async (req: Reque
     .select()
     .single();
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.json({ success: true, doctor: data });
 });
 
@@ -184,8 +207,10 @@ router.patch("/doctors", requireAuth, requireRole(ADMIN_ROLES), async (req: Requ
     is_available,
   } = req.body;
 
-  if (!id)
-    return void res.status(400).json({ error: "Doctor ID is required" });
+  if (!id) {
+    res.status(400).json({ error: "Doctor ID is required" });
+    return;
+  }
 
   const payload: Record<string, unknown> = {};
   if (department_id !== undefined) payload.department_id = department_id;
@@ -203,7 +228,10 @@ router.patch("/doctors", requireAuth, requireRole(ADMIN_ROLES), async (req: Requ
     .select()
     .single();
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.json({ success: true, doctor: data });
 });
 
@@ -218,8 +246,10 @@ router.post("/appointments/approve", requireAuth, requireRole(APPT_MANAGE_ROLES)
     const supabase = createRequestClient(req);
     const { appointmentId, doctor_id } = req.body;
 
-    if (!appointmentId)
-      return void res.status(400).json({ error: "Appointment ID required" });
+    if (!appointmentId) {
+      res.status(400).json({ error: "Appointment ID required" });
+      return;
+    }
 
     const updates: Record<string, unknown> = { status: "APPROVED", updated_at: new Date().toISOString() };
     if (doctor_id) updates.doctor_id = doctor_id;
@@ -227,7 +257,10 @@ router.post("/appointments/approve", requireAuth, requireRole(APPT_MANAGE_ROLES)
     const { data, error } = await supabase
       .from("appointments").update(updates).eq("id", appointmentId).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
 
     // Audit
@@ -266,10 +299,10 @@ router.post("/appointments/reject", requireAuth, requireRole(APPT_MANAGE_ROLES),
     const supabase = createRequestClient(req);
     const { appointmentId } = req.body;
 
-    if (!appointmentId)
-      return void res
-        .status(400)
-        .json({ error: "Appointment ID required" });
+    if (!appointmentId) {
+      res.status(400).json({ error: "Appointment ID required" });
+      return;
+    }
 
     const { data, error } = await supabase
       .from("appointments")
@@ -278,7 +311,10 @@ router.post("/appointments/reject", requireAuth, requireRole(APPT_MANAGE_ROLES),
       .select()
       .single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, appointment: data });
   } catch {
     res.status(500).json({ error: "Unable to reject appointment" });
@@ -293,30 +329,34 @@ router.patch(
       const supabase = createRequestClient(req);
       const { appointment_id, status, doctor_id } = req.body;
 
-      if (!appointment_id || !status)
-        return void res
-          .status(400)
-          .json({ error: "Appointment ID and status are required" });
+    const ALLOWED_SET = new Set(ALLOWED_APPT_STATUSES);
+    if (!appointment_id || !status) {
+      res.status(400).json({ error: "Appointment ID and status are required" });
+      return;
+    }
 
-      if (!ALLOWED_APPT_STATUSES.includes(status))
-        return void res
-          .status(400)
-          .json({ error: "Invalid status. Use APPROVED or REJECTED" });
+    if (!ALLOWED_SET.has(status)) {
+      res.status(400).json({ error: "Invalid status. Use APPROVED or REJECTED" });
+      return;
+    }
 
-      const payload: Record<string, unknown> = {
-        status,
-        updated_at: new Date().toISOString(),
-      };
-      if (doctor_id) payload.doctor_id = doctor_id;
+    const payload: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+    if (doctor_id) payload.doctor_id = doctor_id;
 
-      const { data, error } = await supabase
-        .from("appointments")
-        .update(payload)
-        .eq("id", appointment_id)
-        .select()
-        .single();
+    const { data, error } = await supabase
+      .from("appointments")
+      .update(payload)
+      .eq("id", appointment_id)
+      .select()
+      .single();
 
-      if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
       res.json({ success: true, appointment: data });
     } catch {
       res.status(500).json({ error: "Server error while updating appointment" });
@@ -341,7 +381,10 @@ router.get("/contact-messages", requireAuth, requireRole(ADMIN_ROLES), async (re
       )
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, messages: data ?? [] });
   } catch {
     res
@@ -355,15 +398,16 @@ router.patch("/contact-messages", requireAuth, requireRole(ADMIN_ROLES), async (
     const supabase = createRequestClient(req);
     const { id, status } = req.body;
 
-    if (!id || !status)
-      return void res
-        .status(400)
-        .json({ error: "Message ID and status are required" });
+    const ALLOWED_MSG_SET = new Set(ALLOWED_MSG_STATUSES);
+    if (!id || !status) {
+      res.status(400).json({ error: "Message ID and status are required" });
+      return;
+    }
 
-    if (!ALLOWED_MSG_STATUSES.includes(status))
-      return void res
-        .status(400)
-        .json({ error: "Invalid status. Use NEW, READ, or RESOLVED" });
+    if (!ALLOWED_MSG_SET.has(status)) {
+      res.status(400).json({ error: "Invalid status. Use NEW, READ, or RESOLVED" });
+      return;
+    }
 
     const { data, error } = await supabase
       .from("contact_messages")
@@ -372,7 +416,10 @@ router.patch("/contact-messages", requireAuth, requireRole(ADMIN_ROLES), async (
       .select()
       .single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, message: data });
   } catch {
     res.status(500).json({ error: "Server error while updating message" });

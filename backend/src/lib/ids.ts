@@ -1,17 +1,16 @@
+import crypto from "crypto";
+
 export function generatePatientCode(): string {
-  return `PAT-${new Date().getFullYear()}-${Math.floor(
-    100000 + Math.random() * 900000
-  )}`;
+  const num = crypto.randomInt(100000, 1000000);
+  return `PAT-${new Date().getFullYear()}-${num}`;
 }
 
 export function generateAppointmentCode(): string {
-  return `APT-${new Date().getFullYear()}-${Math.floor(
-    100000 + Math.random() * 900000
-  )}`;
+  const num = crypto.randomInt(100000, 1000000);
+  return `APT-${new Date().getFullYear()}-${num}`;
 }
 
 export function generateInvoiceCode(): string {
-  return `INV-${new Date().getFullYear()}-${Math.floor(
-    100000 + Math.random() * 900000
-  )}`;
+  const num = crypto.randomInt(100000, 1000000);
+  return `INV-${new Date().getFullYear()}-${num}`;
 }

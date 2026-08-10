@@ -22,7 +22,10 @@ router.get("/queue", requireAuth, requireRole(LAB_ROLES), async (_req: Request, 
       `)
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     const rows = data ?? [];
 
@@ -73,10 +76,16 @@ router.get("/queue", requireAuth, requireRole(LAB_ROLES), async (_req: Request, 
 router.patch("/update-status", requireAuth, requireRole(LAB_ROLES), async (req: Request, res: Response) => {
   try {
     const { test_id, status, sample_collected_at } = req.body;
-    if (!test_id || !status) return void res.status(400).json({ error: "test_id and status are required" });
+    if (!test_id || !status) {
+      res.status(400).json({ error: "test_id and status are required" });
+      return;
+    }
 
     const allowed = ["PENDING", "COLLECTED", "PROCESSING", "COMPLETED", "VERIFIED"];
-    if (!allowed.includes(status)) return void res.status(400).json({ error: "Invalid lab status" });
+    if (!allowed.includes(status)) {
+      res.status(400).json({ error: "Invalid lab status" });
+      return;
+    }
 
     const payload: Record<string, unknown> = { status };
     if (status === "COLLECTED" && sample_collected_at) payload.sample_collected_at = sample_collected_at;
@@ -88,15 +97,22 @@ router.patch("/update-status", requireAuth, requireRole(LAB_ROLES), async (req: 
       .select()
       .single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    if (!data) {
+      res.status(404).json({ error: "Lab test not found" });
+      return;
+    }
 
     // Sync appointment status
     if (data?.appointment_id) {
       let apptStatus =
         status === "PROCESSING" ? "LAB_PROCESSING" :
-        status === "COMPLETED"  ? "LAB_COMPLETED"  :
-        status === "VERIFIED"   ? "LAB_COMPLETED"  : "LAB_REQUESTED";
-      
+          status === "COMPLETED" ? "LAB_COMPLETED" :
+            status === "VERIFIED" ? "LAB_COMPLETED" : "LAB_REQUESTED";
+
       // If Lab is completed, check if pharmacy is still pending
       if (status === "COMPLETED" || status === "VERIFIED") {
         const { data: activePrescriptions } = await serviceClient
@@ -133,7 +149,10 @@ router.patch("/update-status", requireAuth, requireRole(LAB_ROLES), async (req: 
 router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: Request, res: Response) => {
   try {
     const { test_id, result_summary, file_url } = req.body;
-    if (!test_id) return void res.status(400).json({ error: "test_id is required" });
+    if (!test_id) {
+      res.status(400).json({ error: "test_id is required" });
+      return;
+    }
 
     // Get lab_test to know patient_id and test_type
     const { data: labTest, error: ltErr } = await serviceClient
@@ -141,7 +160,10 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
       .select("id, appointment_id, patient_id, test_type")
       .eq("id", test_id)
       .single();
-    if (ltErr || !labTest) return void res.status(404).json({ error: "Lab test not found" });
+    if (ltErr || !labTest) {
+      res.status(404).json({ error: "Lab test not found" });
+      return;
+    }
 
     // Insert lab_report
     const { data: report, error: repErr } = await serviceClient
@@ -155,7 +177,10 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
       })
       .select()
       .single();
-    if (repErr) return void res.status(500).json({ error: repErr.message });
+    if (repErr) {
+      res.status(500).json({ error: repErr.message });
+      return;
+    }
 
     // Mark lab_test COMPLETED
     await serviceClient
@@ -240,7 +265,10 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
 router.patch("/verify-report", requireAuth, requireRole(LAB_ROLES), async (req: Request, res: Response) => {
   try {
     const { report_id } = req.body;
-    if (!report_id) return void res.status(400).json({ error: "report_id required" });
+    if (!report_id) {
+      res.status(400).json({ error: "report_id required" });
+      return;
+    }
 
     const now = new Date().toISOString();
     const { data, error } = await serviceClient
@@ -250,7 +278,10 @@ router.patch("/verify-report", requireAuth, requireRole(LAB_ROLES), async (req: 
       .select()
       .single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     // Also mark the linked lab_test as VERIFIED
     if (data?.lab_test_id) {
@@ -271,7 +302,10 @@ router.get("/reports", requireAuth, requireRole(LAB_ROLES), async (_req: Request
       .select("id, lab_test_id, patient_id, result_summary, file_url, test_type, verified_by, verified_at, created_at")
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, reports: data ?? [] });
   } catch (e: any) {
     res.status(500).json({ error: e.message ?? "Reports fetch error" });

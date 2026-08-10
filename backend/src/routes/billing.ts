@@ -14,7 +14,10 @@ router.get("/invoices", requireAuth, requireRole(BILLING_ROLES), async (req: Req
       .select("id,invoice_code,patient_id,appointment_id,patient_name,consultation_charge,lab_charge,medicine_charge,insurance_deduction,total,status,created_at")
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, invoices: invoices ?? [] });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -32,11 +35,21 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
       (medicine_charge !== undefined && (isNaN(Number(medicine_charge)) || Number(medicine_charge) < 0)) ||
       (insurance_deduction !== undefined && (isNaN(Number(insurance_deduction)) || Number(insurance_deduction) < 0))
     ) {
-      return void res.status(400).json({ error: "Charges and deductions must be non-negative numbers" });
+      res.status(400).json({ error: "Charges and deductions must be non-negative numbers" });
+      return;
     }
 
     if (patient_name && /[<>]/g.test(patient_name)) {
-      return void res.status(400).json({ error: "Patient name cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Patient name cannot contain HTML or script characters" });
+      return;
+    }
+
+    let targetPatientId = patient_id ?? null;
+    if (targetPatientId) {
+      const { data: pat } = await serviceClient.from("patients").select("id").eq("id", targetPatientId).maybeSingle();
+      if (!pat) {
+        targetPatientId = null; // Fallback to null if FK patient_id doesn't exist in patients table
+      }
     }
 
     const total = Math.max(0,
@@ -48,8 +61,8 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
 
     const { data, error } = await serviceClient.from("invoices").insert({
       invoice_code: generateInvoiceCode(),
-      patient_id: patient_id ?? null,
-      appointment_id,
+      patient_id: targetPatientId,
+      appointment_id: appointment_id ?? null,
       patient_name: patient_name ?? null,
       consultation_charge: Number(consultation_charge ?? 0),
       lab_charge: Number(lab_charge ?? 0),
@@ -59,7 +72,10 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
       status: "UNPAID",
     }).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     await serviceClient.from("audit_logs").insert({
       action: "INVOICE_GENERATED",
@@ -79,25 +95,36 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
 router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Request, res: Response) => {
   try {
     const { invoice_id, method, amount } = req.body;
-    if (!invoice_id) return void res.status(400).json({ error: "invoice_id required" });
+    if (!invoice_id) {
+      res.status(400).json({ error: "invoice_id required" });
+      return;
+    }
 
     if (amount !== undefined && (isNaN(Number(amount)) || Number(amount) < 0)) {
-      return void res.status(400).json({ error: "Payment amount must be a non-negative number" });
+      res.status(400).json({ error: "Payment amount must be a non-negative number" });
+      return;
     }
 
     const { data: invoice, error: invErr } = await serviceClient
-      .from("invoices").select("status, total, invoice_code, appointment_id").eq("id", invoice_id).single();
-    if (invErr || !invoice) return void res.status(404).json({ error: "Invoice not found" });
+      .from("invoices").select("status, total, invoice_code, appointment_id").eq("id", invoice_id).maybeSingle();
+    if (invErr || !invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
 
     // If already PAID (e.g., Razorpay verify already handled it), return success
     if (invoice.status === "PAID") {
-      return void res.json({ success: true, already_paid: true });
+      res.json({ success: true, already_paid: true });
+      return;
     }
 
     // Mark invoice paid
     const { error: updErr } = await serviceClient
       .from("invoices").update({ status: "PAID" }).eq("id", invoice_id);
-    if (updErr) return void res.status(500).json({ error: updErr.message });
+    if (updErr) {
+      res.status(500).json({ error: updErr.message });
+      return;
+    }
 
     // Write to payments
     await serviceClient.from("payments").insert({
@@ -117,9 +144,9 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
 
       // Notify patient
       const { data: appt } = await serviceClient
-        .from("appointments").select("patient_id,patient_name").eq("id", invoice.appointment_id).single();
+        .from("appointments").select("patient_id,patient_name").eq("id", invoice.appointment_id).maybeSingle();
       if (appt?.patient_id) {
-        const { data: patient } = await serviceClient.from("patients").select("profile_id").eq("id", appt.patient_id).single();
+        const { data: patient } = await serviceClient.from("patients").select("profile_id").eq("id", appt.patient_id).maybeSingle();
         if (patient?.profile_id) {
           await serviceClient.from("notifications").insert({
             user_id: patient.profile_id,
@@ -204,7 +231,10 @@ router.get("/payments", requireAuth, requireRole(BILLING_ROLES), async (req: Req
       `)
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     // Flatten the joined data for the frontend
     const payments = (data ?? []).map((p: any) => ({

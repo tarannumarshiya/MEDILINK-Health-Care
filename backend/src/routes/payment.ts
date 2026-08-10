@@ -113,21 +113,26 @@ router.post("/create-order", requireAuth, async (req: Request, res: Response) =>
   const purpose = req.body.purpose || req.query.purpose || "invoice";
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
-  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  if (resolved.error) {
+    res.status(resolved.status).json({ error: resolved.error });
+    return;
+  }
   const amount = resolved.amount as number;
 
   // ── MOCK ──
   if (config.paymentMode === "mock") {
-    return void res.json({
+    res.json({
       orderId: `mock_order_${Date.now()}`,
       amount,
       demo: true,
     });
+    return;
   }
 
   // ── RAZORPAY ──
   if (!config.razorpayKeyId || !config.razorpayKeySecret) {
-    return void res.status(500).json({ error: "Razorpay keys not configured" });
+    res.status(500).json({ error: "Razorpay keys not configured" });
+    return;
   }
 
   const rzpRes = await fetch("https://api.razorpay.com/v1/orders", {
@@ -145,7 +150,8 @@ router.post("/create-order", requireAuth, async (req: Request, res: Response) =>
 
   if (!rzpRes.ok) {
     const err = await rzpRes.text();
-    return void res.status(502).json({ error: err });
+    res.status(502).json({ error: err });
+    return;
   }
 
   const rzpData = (await rzpRes.json()) as { id: string };
@@ -162,25 +168,31 @@ router.post("/create-qr", requireAuth, async (req: Request, res: Response) => {
   const purpose = req.body.purpose || req.query.purpose || "invoice";
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
-  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  if (resolved.error) {
+    res.status(resolved.status).json({ error: resolved.error });
+    return;
+  }
   const amount = resolved.amount as number;
 
   if (amount <= 0) {
-    return void res.status(400).json({ error: "Invalid amount for QR generation" });
+    res.status(400).json({ error: "Invalid amount for QR generation" });
+    return;
   }
 
   if (config.paymentMode === "mock") {
-    return void res.json({
+    res.json({
       success: true,
       qrId: "mock_qr_" + Date.now(),
       imageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=mock@upi&pn=Mock%20Payment&am=${amount}`,
       amount,
       demo: true,
     });
+    return;
   }
 
   if (!config.razorpayKeyId || !config.razorpayKeySecret) {
-    return void res.status(500).json({ error: "Razorpay keys not configured" });
+    res.status(500).json({ error: "Razorpay keys not configured" });
+    return;
   }
 
   try {
@@ -204,7 +216,8 @@ router.post("/create-qr", requireAuth, async (req: Request, res: Response) => {
 
     if (!rzpRes.ok) {
       const err = await rzpRes.text();
-      return void res.status(502).json({ error: err });
+      res.status(502).json({ error: err });
+      return;
     }
 
     const qr = (await rzpRes.json()) as { id: string; image_url: string; amount: number };
@@ -225,22 +238,30 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
   const purpose = req.body.purpose || req.query.purpose || "invoice";
   const amount = req.body.amount || req.query.amount;
 
-  if (!qrId) return void res.status(400).json({ error: "qrId required" });
+  if (!qrId) {
+    res.status(400).json({ error: "qrId required" });
+    return;
+  }
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
-  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  if (resolved.error) {
+    res.status(resolved.status).json({ error: resolved.error });
+    return;
+  }
   const expectedAmount = resolved.amount as number;
   const invoiceId = (resolved as any).invoiceId as string | null;
 
   if (amount != null && !amountsMatch(Number(amount), expectedAmount)) {
-    return void res.status(422).json({ error: "Payment amount does not match invoice" });
+    res.status(422).json({ error: "Payment amount does not match invoice" });
+    return;
   }
 
   try {
     if (config.paymentMode === "mock") {
       const paymentId = "mock_payment_" + Date.now();
       if (await paymentAlreadyRecorded(paymentId)) {
-        return void res.json({ verified: true, paymentId, alreadyRecorded: true });
+        res.json({ verified: true, paymentId, alreadyRecorded: true });
+        return;
       }
       await serviceClient.from("payments").insert({
         invoice_id: invoiceId,
@@ -255,11 +276,13 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
       } else if (invoiceCode) {
         await serviceClient.from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
       }
-      return void res.json({ verified: true, paymentId });
+      res.json({ verified: true, paymentId });
+      return;
     }
 
     if (!config.razorpayKeyId || !config.razorpayKeySecret) {
-      return void res.status(500).json({ error: "Razorpay keys not configured" });
+      res.status(500).json({ error: "Razorpay keys not configured" });
+      return;
     }
 
     const auth = Buffer.from(`${config.razorpayKeyId}:${config.razorpayKeySecret}`).toString("base64");
@@ -269,7 +292,8 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
 
     if (!rzpRes.ok) {
       const err = await rzpRes.text();
-      return void res.status(502).json({ error: err });
+      res.status(502).json({ error: err });
+      return;
     }
 
     const data = (await rzpRes.json()) as { items?: { id: string; status: string }[] };
@@ -277,7 +301,8 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
 
     if (paid) {
       if (await paymentAlreadyRecorded(paid.id)) {
-        return void res.json({ verified: true, paymentId: paid.id, alreadyRecorded: true });
+        res.json({ verified: true, paymentId: paid.id, alreadyRecorded: true });
+        return;
       }
       await serviceClient.from("payments").insert({
         invoice_id: invoiceId,
@@ -292,7 +317,8 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
       } else if (invoiceCode) {
         await serviceClient.from("invoices").update({ status: "PAID" }).eq("invoice_code", invoiceCode);
       }
-      return void res.json({ verified: true, paymentId: paid.id });
+      res.json({ verified: true, paymentId: paid.id });
+      return;
     }
 
     res.json({ verified: false });
@@ -320,10 +346,12 @@ router.post("/verify", async (req: Request, res: Response) => {
   // ── RAZORPAY: verify HMAC signature before writing anything or checking DB ──
   if (config.paymentMode === "razorpay") {
     if (!config.razorpayKeySecret) {
-      return void res.status(500).json({ error: "Razorpay secret not configured" });
+      res.status(500).json({ error: "Razorpay secret not configured" });
+      return;
     }
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return void res.status(400).json({ error: "Invalid signature" });
+      res.status(400).json({ error: "Invalid signature" });
+      return;
     }
     const expected = crypto
       .createHmac("sha256", config.razorpayKeySecret)
@@ -331,28 +359,35 @@ router.post("/verify", async (req: Request, res: Response) => {
       .digest("hex");
 
     if (expected !== razorpay_signature) {
-      return void res.status(400).json({ error: "Invalid signature" });
+      res.status(400).json({ error: "Invalid signature" });
+      return;
     }
   }
 
   // A client can never supply the final status; it is derived server-side only.
   const requestedStatus = req.body.status;
   if (requestedStatus && String(requestedStatus).toUpperCase() !== "COMPLETED") {
-    return void res.status(400).json({ error: "Invalid status supplied" });
+    res.status(400).json({ error: "Invalid status supplied" });
+    return;
   }
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
-  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  if (resolved.error) {
+    res.status(resolved.status).json({ error: resolved.error });
+    return;
+  }
   const expectedAmount = resolved.amount as number;
   const invoiceId = (resolved as any).invoiceId as string | null;
 
   if (amount != null && !amountsMatch(Number(amount), expectedAmount)) {
-    return void res.status(422).json({ error: "Payment amount does not match invoice" });
+    res.status(422).json({ error: "Payment amount does not match invoice" });
+    return;
   }
 
   // Idempotency: if this gateway payment was already recorded, return the result.
   if (await paymentAlreadyRecorded(razorpay_payment_id)) {
-    return void res.json({ verified: true, alreadyRecorded: true });
+    res.json({ verified: true, alreadyRecorded: true });
+    return;
   }
 
   // ── MOCK: only reachable when demo mode is enabled (enforced at startup) ──
@@ -393,12 +428,16 @@ router.post("/mark-cash", requireAuth, async (req: Request, res: Response) => {
   const amount = req.body.amount || req.query.amount;
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
-  if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
+  if (resolved.error) {
+    res.status(resolved.status).json({ error: resolved.error });
+    return;
+  }
   const expectedAmount = resolved.amount as number;
   const invoiceId = (resolved as any).invoiceId as string | null;
 
   if (amount != null && !amountsMatch(Number(amount), expectedAmount)) {
-    return void res.status(422).json({ error: "Payment amount does not match invoice" });
+    res.status(422).json({ error: "Payment amount does not match invoice" });
+    return;
   }
 
   const paymentId = "cash_" + Date.now();

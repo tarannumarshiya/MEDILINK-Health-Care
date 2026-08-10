@@ -118,24 +118,26 @@ router.get(
           .select("id")
           .eq("profile_id", user.id)
           .maybeSingle();
-        
+
         if (!patientRecord) {
-          return void res.status(404).json({
+          res.status(404).json({
             success: false,
             error: "No patient record found for this account",
           });
+          return;
         }
-        
+
         query = query.eq("patient_id", patientRecord.id);
       }
 
       const { data, error } = await query;
 
       if (error) {
-        return void res.status(500).json({
+        res.status(500).json({
           success: false,
           error: error.message,
         });
+        return;
       }
 
       const sessions = (data ?? []) as TelemedicineSessionRow[];
@@ -282,15 +284,17 @@ router.get(
           });
       }
 
-      return void res.json({
+      res.json({
         success: true,
         sessions: enriched,
       });
+      return;
     } catch (error: unknown) {
-      return void res.status(500).json({
+      res.status(500).json({
         success: false,
         error: getErrorMessage(error),
       });
+      return;
     }
   }
 );
@@ -308,10 +312,11 @@ router.post("/create", requireAuth, requireRole(TELEMEDICINE_ADMIN_ROLES), async
     } = req.body as CreateSessionBody & { reason?: string };
 
     if (!scheduled_at) {
-      return void res.status(400).json({
+      res.status(400).json({
         success: false,
         error: "scheduled_at required",
       });
+      return;
     }
 
     const { data, error } = await serviceClient
@@ -328,21 +333,24 @@ router.post("/create", requireAuth, requireRole(TELEMEDICINE_ADMIN_ROLES), async
       .single();
 
     if (error) {
-      return void res.status(500).json({
+      res.status(500).json({
         success: false,
         error: error.message,
       });
+      return;
     }
 
-    return void res.json({
+    res.json({
       success: true,
       session: data,
     });
+    return;
   } catch (error: unknown) {
-    return void res.status(500).json({
+    res.status(500).json({
       success: false,
       error: getErrorMessage(error),
     });
+    return;
   }
 });
 
@@ -362,10 +370,11 @@ router.patch(
       const recordingUrl = req.body.recording_url || req.body.recordingUrl;
 
       if (!sessionId || !status) {
-        return void res.status(400).json({
+        res.status(400).json({
           success: false,
           error: "session_id/sessionId and status required",
         });
+        return;
       }
 
       // Verify ownership for patients
@@ -375,43 +384,47 @@ router.patch(
           .select("patient_id")
           .eq("id", sessionId)
           .maybeSingle();
-        
+
         if (!session) {
-          return void res.status(404).json({
+          res.status(404).json({
             success: false,
             error: "Session not found",
           });
+          return;
         }
-        
+
         const { data: patientRecord } = await serviceClient
           .from("patients")
           .select("id")
           .eq("profile_id", user.id)
           .maybeSingle();
-        
+
         if (!patientRecord || session.patient_id !== patientRecord.id) {
-          return void res.status(403).json({
+          res.status(403).json({
             success: false,
             error: "You can only update your own sessions",
           });
+          return;
         }
       }
 
       const normalizedStatus = normalizeStatus(status);
 
       if (!normalizedStatus) {
-        return void res.status(400).json({
+        res.status(400).json({
           success: false,
           error: "Invalid status. Use SCHEDULED, ONGOING, COMPLETED, CANCELLED, or MISSED.",
         });
+        return;
       }
 
       // Patients can only cancel sessions
       if (isPatient && normalizedStatus !== "CANCELLED") {
-        return void res.status(403).json({
+        res.status(403).json({
           success: false,
           error: "Patients can only cancel sessions",
         });
+        return;
       }
 
       const updates: {
@@ -436,10 +449,11 @@ router.patch(
         .single();
 
       if (error) {
-        return void res.status(500).json({
+        res.status(500).json({
           success: false,
           error: error.message,
         });
+        return;
       }
 
       // Sync status to the original appointment
@@ -448,23 +462,25 @@ router.patch(
         if (normalizedStatus === "SCHEDULED" || normalizedStatus === "ONGOING") appointmentStatus = "APPROVED";
         else if (normalizedStatus === "COMPLETED") appointmentStatus = "COMPLETED";
         else if (normalizedStatus === "CANCELLED" || normalizedStatus === "MISSED") appointmentStatus = "REJECTED"; // or CANCELLED if supported
-        
+
         await serviceClient
           .from("appointments")
           .update({ status: appointmentStatus })
           .eq("id", data.appointment_id);
       }
 
-      return void res.json({
+      res.json({
         success: true,
         message: `Session status updated to ${normalizedStatus}`,
         session: data,
       });
+      return;
     } catch (error: unknown) {
-      return void res.status(500).json({
+      res.status(500).json({
         success: false,
         error: getErrorMessage(error),
       });
+      return;
     }
   }
 );
@@ -479,10 +495,11 @@ router.patch(
       const { session_id, doctor_id } = req.body;
 
       if (!session_id || !doctor_id) {
-        return void res.status(400).json({
+        res.status(400).json({
           success: false,
           error: "session_id and doctor_id are required",
         });
+        return;
       }
 
       const { data, error } = await serviceClient
@@ -496,22 +513,25 @@ router.patch(
         .single();
 
       if (error) {
-        return void res.status(500).json({
+        res.status(500).json({
           success: false,
           error: error.message,
         });
+        return;
       }
 
-      return void res.json({
+      res.json({
         success: true,
         message: "Session approved and doctor assigned.",
         session: data,
       });
+      return;
     } catch (error: unknown) {
-      return void res.status(500).json({
+      res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       });
+      return;
     }
   }
 );

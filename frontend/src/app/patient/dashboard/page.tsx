@@ -522,7 +522,16 @@ export default function PatientDashboardPage() {
               action={unread > 0 ? <button onClick={markAllRead} className="text-xs font-black text-[var(--primary)] hover:underline">Mark all read</button> : undefined}>
               <div className="space-y-2.5">
                 {notifications.slice(0, 4).map(n => (
-                  <div key={n.id} onClick={() => markNotificationRead(n.id)}
+                  <div key={n.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => markNotificationRead(n.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        markNotificationRead(n.id);
+                      }
+                    }}
                     className={`cursor-pointer rounded-xl border p-3.5 transition hover:-translate-y-0.5 ${n.is_read ? "border-[var(--line)] bg-[var(--canvas)]" : "border-[var(--primary)]/20 bg-[var(--primary-soft)]"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -959,7 +968,16 @@ export default function PatientDashboardPage() {
             ) : undefined}>
             <div className="space-y-2.5">
               {notifications.map(n => (
-                <div key={n.id} onClick={() => markNotificationRead(n.id)}
+                <div key={n.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => markNotificationRead(n.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      markNotificationRead(n.id);
+                    }
+                  }}
                   className={`cursor-pointer rounded-2xl border p-4 transition hover:-translate-y-0.5 ${n.is_read ? "border-[var(--line)] bg-[var(--canvas)]" : "border-[var(--primary)]/20 bg-[var(--primary-soft)]"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
