@@ -97,11 +97,9 @@ router.post(
 /* -------------------------------------------------------------------------- */
 
 router.post("/create-order", async (req: Request, res: Response) => {
-  const {
-    invoiceCode,
-    purpose = "invoice",
-    referenceId,
-  }: { invoiceCode: string; purpose?: string; referenceId?: string } = req.body;
+  const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
+  const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
+  const purpose = req.body.purpose || req.query.purpose || "invoice";
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
   if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
@@ -148,7 +146,9 @@ router.post("/create-order", async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 router.post("/create-qr", async (req: Request, res: Response) => {
-  const { invoiceCode, purpose = "invoice", referenceId } = req.body;
+  const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
+  const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
+  const purpose = req.body.purpose || req.query.purpose || "invoice";
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
   if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });
@@ -208,7 +208,12 @@ router.post("/create-qr", async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 router.post("/verify-qr", async (req: Request, res: Response) => {
-  const { qrId, invoiceCode, purpose = "invoice", referenceId, amount } = req.body;
+  const qrId = req.body.qrId || req.body.qr_id || req.query.qrId || req.query.qr_id;
+  const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
+  const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
+  const purpose = req.body.purpose || req.query.purpose || "invoice";
+  const amount = req.body.amount || req.query.amount;
+
   if (!qrId) return void res.status(400).json({ error: "qrId required" });
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
@@ -290,15 +295,34 @@ router.post("/verify-qr", async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 router.post("/verify", async (req: Request, res: Response) => {
+  const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
+  const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
+  const purpose = req.body.purpose || req.query.purpose || "invoice";
+  const amount = req.body.amount || req.query.amount;
+
   const {
     razorpay_order_id,
     razorpay_payment_id,
     razorpay_signature,
-    invoiceCode,
-    purpose = "invoice",
-    referenceId,
-    amount,
   } = req.body;
+
+  // ── RAZORPAY: verify HMAC signature before writing anything or checking DB ──
+  if (config.paymentMode === "razorpay") {
+    if (!config.razorpayKeySecret) {
+      return void res.status(500).json({ error: "Razorpay secret not configured" });
+    }
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return void res.status(400).json({ error: "Invalid signature" });
+    }
+    const expected = crypto
+      .createHmac("sha256", config.razorpayKeySecret)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (expected !== razorpay_signature) {
+      return void res.status(400).json({ error: "Invalid signature" });
+    }
+  }
 
   // A client can never supply the final status; it is derived server-side only.
   const requestedStatus = req.body.status;
@@ -318,24 +342,6 @@ router.post("/verify", async (req: Request, res: Response) => {
   // Idempotency: if this gateway payment was already recorded, return the result.
   if (await paymentAlreadyRecorded(razorpay_payment_id)) {
     return void res.json({ verified: true, alreadyRecorded: true });
-  }
-
-  // ── RAZORPAY: verify HMAC signature before writing anything ──
-  if (config.paymentMode === "razorpay") {
-    if (!config.razorpayKeySecret) {
-      return void res.status(500).json({ error: "Razorpay secret not configured" });
-    }
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return void res.status(400).json({ error: "Missing Razorpay verification fields" });
-    }
-    const expected = crypto
-      .createHmac("sha256", config.razorpayKeySecret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest("hex");
-
-    if (expected !== razorpay_signature) {
-      return void res.status(400).json({ error: "Invalid signature" });
-    }
   }
 
   // ── MOCK: only reachable when demo mode is enabled (enforced at startup) ──
@@ -370,7 +376,10 @@ router.post("/verify", async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 router.post("/mark-cash", requireAuth, async (req: Request, res: Response) => {
-  const { invoiceCode, purpose = "invoice", referenceId, amount } = req.body;
+  const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
+  const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
+  const purpose = req.body.purpose || req.query.purpose || "invoice";
+  const amount = req.body.amount || req.query.amount;
 
   const resolved = await resolveReferenceAmount(purpose, referenceId, invoiceCode);
   if (resolved.error) return void res.status(resolved.status).json({ error: resolved.error });

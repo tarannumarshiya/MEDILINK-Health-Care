@@ -86,7 +86,7 @@ router.patch("/pay", requireAuth, requireRole(BILLING_ROLES), async (req: Reques
     }
 
     const { data: invoice, error: invErr } = await serviceClient
-      .from("invoices").select("*").eq("id", invoice_id).single();
+      .from("invoices").select("status, total, invoice_code, appointment_id").eq("id", invoice_id).single();
     if (invErr || !invoice) return void res.status(404).json({ error: "Invoice not found" });
 
     // If already PAID (e.g., Razorpay verify already handled it), return success

@@ -39,13 +39,7 @@ router.post("/register", async (req: Request, res: Response) => {
     if (parsedAge < 0) {
       return void res
         .status(400)
-        .json({ error: "age must be a valid positive integer (0 < age < 150)" });
-    }
-
-    if (parsedAge === 0) {
-      return void res
-        .status(400)
-        .json({ error: "age 0 is not a valid patient age" });
+        .json({ error: "age must be a valid positive integer (0 <= age < 150)" });
     }
 
     if (parsedAge >= 150) {
@@ -75,6 +69,11 @@ router.post("/register", async (req: Request, res: Response) => {
       .status(500)
       .json({ error: "Server error while registering patient" });
   }
+});
+
+router.all("/register", (req: Request, res: Response) => {
+  res.setHeader("Allow", "POST");
+  res.status(405).json({ error: "Method Not Allowed" });
 });
 
 export default router;

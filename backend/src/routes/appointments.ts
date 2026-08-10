@@ -33,7 +33,7 @@ router.post("/create", async (req: Request, res: Response) => {
 
     if (
       !full_name ||
-      !age ||
+      (age === undefined || age === null || age === "") ||
       !phone ||
       !department ||
       !preferred_date
@@ -63,7 +63,19 @@ router.post("/create", async (req: Request, res: Response) => {
         .json({ error: "Invalid date format" });
     }
 
-    const appointmentCode = generateAppointmentCode();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (dateObj < today) {
+      return void res
+        .status(400)
+        .json({ error: "Preferred date cannot be in the past" });
+    }
+
+    if (preferred_time && !/^[0-2]?[0-9]:[0-5][0-9]$/.test(preferred_time)) {
+      return void res
+        .status(400)
+        .json({ error: "Invalid time format. Must be HH:MM." });
+    }
 
     // Resolve Department ID
     const { data: deptRow } = await getServiceClient()
@@ -72,7 +84,14 @@ router.post("/create", async (req: Request, res: Response) => {
       .ilike("name", department)
       .maybeSingle();
 
-    const department_id = deptRow?.id ?? null;
+    if (!deptRow) {
+      return void res
+        .status(400)
+        .json({ error: "Nonexistent department" });
+    }
+
+    const department_id = deptRow.id;
+    const appointmentCode = generateAppointmentCode();
 
     // Check existing patient
     let orFilter = `phone.eq.${phone}`;
@@ -229,6 +248,11 @@ router.post("/create", async (req: Request, res: Response) => {
   }
 });
 
+router.all("/create", (req: Request, res: Response) => {
+  res.setHeader("Allow", "POST");
+  res.status(405).json({ error: "Method Not Allowed" });
+});
+
 /* -------------------------------------------------------------------------- */
 /*                          POST /api/appointments/track                      */
 /*                                                                             */
@@ -239,7 +263,7 @@ router.post("/create", async (req: Request, res: Response) => {
 
 router.post("/track", async (req: Request, res: Response) => {
   try {
-    const searchValue = String(req.body.search ?? "").trim();
+    const searchValue = String(req.body.search || req.body.appointment_code || req.query.search || req.query.appointment_code || "").trim();
     if (!searchValue) {
       return void res.status(400).json({
         error: "Appointment reference is required",

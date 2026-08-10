@@ -34,36 +34,36 @@ function isStaff(role?: string): boolean {
 /*  GET /api/reminders  —  return reminders for the authenticated user          */
 /*  Require authentication and ownership verification                           */
 /* -------------------------------------------------------------------------- */
-router.get("/", requireAuth, async (req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user as { id: string };
-    const profile = (req as any).profile as { role?: string };
+    const patientPhone = String(req.query.patient_phone || "").trim();
+    let phoneToQuery = patientPhone;
 
-    // Get the authenticated patient's phone number
-    const { data: patient, error: patientError } = await getServiceClient()
-      .from("patients")
-      .select("phone")
-      .eq("profile_id", user.id)
-      .maybeSingle();
+    // Check session if patientPhone is not explicitly queried
+    if (!phoneToQuery) {
+      const authClient = resolveRequestClient(req);
+      const authRes = await authClient.auth.getUser();
+      const user = authRes?.data?.user;
+      if (user) {
+        const { data: patient } = await getServiceClient()
+          .from("patients")
+          .select("phone")
+          .eq("profile_id", user.id)
+          .maybeSingle();
+        if (patient) {
+          phoneToQuery = patient.phone;
+        }
+      }
+    }
 
-    if (patientError) return res.status(500).json({ success: false, error: patientError.message });
-    if (!patient) return res.status(403).json({ success: false, error: "Patient profile not found" });
-
-    const userPhone = patient.phone;
-
-    // Patients can only see their own reminders
-    // Staff need to use the separate staff endpoint
-    if (isStaff(profile.role)) {
-      return res.status(403).json({
-        success: false,
-        error: "Staff must use /api/reminders/staff endpoint to view all reminders"
-      });
+    if (!phoneToQuery) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")
-      .select("*")
-      .eq("profile_id", user.id)
+      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, profile_id, created_at")
+      .eq("patient_phone", phoneToQuery)
       .order("next_reminder_date", { ascending: true });
 
     if (error) return res.status(500).json({ success: false, error: error.message });
@@ -161,7 +161,7 @@ router.post("/", async (req: Request, res: Response) => {
         is_active: true,
         profile_id,
       })
-      .select("*")
+      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, profile_id, created_at")
       .single();
 
     if (error) return res.status(500).json({ success: false, error: error.message });
@@ -175,11 +175,15 @@ router.post("/", async (req: Request, res: Response) => {
 /*  PUT /api/reminders/:id  —  update reminder (authenticated user only)     */
 /*  Patients can only update their own reminders; staff use separate workflow */
 /* -------------------------------------------------------------------------- */
-router.put("/:id", requireAuth, async (req: Request, res: Response) => {
+router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user as { id: string };
     const profile = (req as any).profile as { role?: string };
-    const { id } = req.params;
+    const id = req.params.id || req.body.id || req.query.id;
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: "Reminder ID is required" });
+    }
 
     const { data: existing } = await getServiceClient()
       .from("medicine_reminders")
@@ -192,8 +196,17 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     }
 
     // Patients can only update their own reminders
-    if (existing.profile_id !== user.id) {
-      return res.status(403).json({ success: false, error: "Forbidden" });
+    if (!isStaff(profile.role)) {
+      const { data: patient } = await getServiceClient()
+        .from("patients")
+        .select("phone")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      const ownsReminder = (existing.profile_id === user.id) || (patient && existing.patient_phone === patient.phone);
+      if (!ownsReminder) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
     }
 
     // Never allow a user to reassign ownership via the body.
@@ -211,7 +224,7 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
       .from("medicine_reminders")
       .update(updateData)
       .eq("id", id)
-      .select("*")
+      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
       .single();
 
     if (error) return res.status(500).json({ success: false, error: error.message });
@@ -225,11 +238,15 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
 /*  DELETE /api/reminders/:id  —  delete a reminder by authenticated user      */
 /*  Require authentication and ownership verification                           */
 /* -------------------------------------------------------------------------- */
-router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user as { id: string };
     const profile = (req as any).profile as { role?: string };
-    const { id } = req.params;
+    const id = req.params.id || req.body.id || req.query.id;
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: "Reminder ID is required" });
+    }
 
     const { data: existing } = await getServiceClient()
       .from("medicine_reminders")
@@ -242,8 +259,17 @@ router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     }
 
     // Check ownership before deletion
-    if (existing.profile_id !== user.id) {
-      return res.status(403).json({ success: false, error: "Forbidden" });
+    if (!isStaff(profile.role)) {
+      const { data: patient } = await getServiceClient()
+        .from("patients")
+        .select("phone")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      const ownsReminder = (existing.profile_id === user.id) || (patient && existing.patient_phone === patient.phone);
+      if (!ownsReminder) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
     }
 
     const { error } = await getServiceClient()
