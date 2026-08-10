@@ -43,6 +43,26 @@ router.post("/create", async (req: Request, res: Response) => {
       });
     }
 
+    if (/[<>]/g.test(full_name)) {
+      return void res
+        .status(400)
+        .json({ error: "Name cannot contain HTML or script characters" });
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10 || phone.length > 15 || !/^\+?[0-9]+$/.test(phone)) {
+      return void res
+        .status(400)
+        .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+    }
+
+    const dateObj = new Date(preferred_date);
+    if (isNaN(dateObj.getTime())) {
+      return void res
+        .status(400)
+        .json({ error: "Invalid date format" });
+    }
+
     const appointmentCode = generateAppointmentCode();
 
     // Resolve Department ID

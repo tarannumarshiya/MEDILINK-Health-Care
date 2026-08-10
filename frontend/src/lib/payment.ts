@@ -153,8 +153,8 @@ export async function initiatePayment(opts: PayOptions): Promise<void> {
     // Read actual payment mode from backend
     const res = await apiFetch("/api/payment/public-settings");
     if (res.ok) {
-      const { paymentMode, demoMode } = await res.json();
-      if (paymentMode === "razorpay" && !demoMode) {
+      const { paymentMode } = await res.json();
+      if (paymentMode === "razorpay") {
         await runLivePayment(opts);
         return;
       }

@@ -16,6 +16,19 @@ router.post("/register", async (req: Request, res: Response) => {
         .json({ error: "Name, age and phone are required" });
     }
 
+    if (/[<>]/g.test(full_name)) {
+      return void res
+        .status(400)
+        .json({ error: "Name cannot contain HTML or script characters" });
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10 || phone.length > 15 || !/^\+?[0-9]+$/.test(phone)) {
+      return void res
+        .status(400)
+        .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+    }
+
     const parsedAge = Number(age);
     if (isNaN(parsedAge) || !Number.isInteger(parsedAge)) {
       return void res

@@ -191,6 +191,25 @@ router.post("/orders", async (req: Request, res: Response) => {
         .json({ error: "Patient name and phone number are required" });
     }
 
+    if (/[<>]/g.test(patient_name)) {
+      return void res
+        .status(400)
+        .json({ error: "Patient name cannot contain HTML or script characters" });
+    }
+
+    const phoneDigits = patient_phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10 || patient_phone.length > 15 || !/^\+?[0-9]+$/.test(patient_phone)) {
+      return void res
+        .status(400)
+        .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+    }
+
+    if (notes && /[<>]/g.test(notes)) {
+      return void res
+        .status(400)
+        .json({ error: "Notes cannot contain HTML or script characters" });
+    }
+
     // Server-side price calculation: fetch authoritative prices from the
     // medicines table so the client cannot manipulate pricing.
     let total = 0;

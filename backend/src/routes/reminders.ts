@@ -128,6 +128,20 @@ router.post("/", async (req: Request, res: Response) => {
         error: "patient_phone, medicine_name, and frequency are required",
       });
     }
+
+    if (/[<>]/g.test(medicine_name)) {
+      return res.status(400).json({ success: false, error: "Medicine name cannot contain HTML or script characters" });
+    }
+
+    if (notes && /[<>]/g.test(notes)) {
+      return res.status(400).json({ success: false, error: "Notes cannot contain HTML or script characters" });
+    }
+
+    const phoneDigits = phoneToUse.replace(/\D/g, "");
+    if (phoneDigits.length < 10 || phoneToUse.length > 15 || !/^\+?[0-9]+$/.test(phoneToUse)) {
+      return res.status(400).json({ success: false, error: "Invalid phone number format" });
+    }
+
     if (!["daily", "weekly", "every_15_days", "monthly"].includes(frequency)) {
       return res.status(422).json({ success: false, error: "Invalid frequency" });
     }
