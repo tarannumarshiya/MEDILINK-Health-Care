@@ -1,11 +1,15 @@
 # MEDILINK Healthcare — Comprehensive Technical Project Documentation
 
+**Documentation Status:** Final  
+Documentation reflects the current implementation, validation results, resolved observations, supporting evidence, and remaining project items as verified during the final documentation review.
+
+**Document Title:** System Architecture, Workflows, Configuration, and Engineering Reference  
 **Project Name:** MEDILINK Digital Health Care  
 **Repository Name:** `medilink-healthcare`  
 **System Architecture:** Decoupled Modern Web Application (Next.js 16 Frontend + Express.js 4 REST API + Supabase PostgreSQL)  
 **Primary Language:** TypeScript 5.x (Frontend & Backend)  
 **Document Version:** 1.0.0  
-**Last Verified Date:** August 2026  
+**Last Verified Date:** August 11, 2026  
 
 ---
 
@@ -148,205 +152,103 @@
            ┌────────────────────────────┼───────────────────────────┐
            │                            │                           │
 ┌──────────▼──────────┐      ┌──────────▼──────────┐     ┌──────────▼──────────┐
-│   PostgreSQL (DB)   │      │   External APIs     │     │   Supabase Storage  │
-│ • Profiles & Roles  │      │ • Razorpay Gateway  │     │ • lab-reports bucket│
-│ • Clinical Data     │      │ • Brevo Email API   │     │ • Pathologist PDFs  │
-│ • Invoices & Claims │      │ • Meta WhatsApp API │     └─────────────────────┘
-│ • Audit Logs        │      │ • Twilio SMS API    │
-└─────────────────────┘      └─────────────────────┘
-```
-
-### 4.1 Frontend Architecture
-- **Route Groups:**
-  - `app/(public)/`: Public marketing and service pages sharing standard `PublicNavbar` and `PublicFooter`.
-  - `app/patient/`: Patient authentication, registration, journey timeline, tracking, and dashboard.
-  - `app/admin/` & `app/super-admin/`: Administrative control centers.
-  - `app/doctor/`, `app/lab/`, `app/pharmacy/`, `app/reception/`, `app/billing/`, `app/insurance/`, `app/emergency/`, `app/telemedicine/`: Role-specialized clinical and operational dashboards.
-- **Shared Dashboard Shell (`DashboardShell.tsx`):**
-  - Configurable idle session timeout with countdown modal warning and automatic sign-out.
-  - Responsive collapsible sidebar navigation with badge counts.
-  - Profile header with user avatar initials, active role display, notification bell, and one-click logout.
-  - Standardized UI components: `DataTable`, `MetricCard`, `Panel`, `SkeletonLoader`, `StatusBadge`, `SuccessBanner`, `EmptyState`, `ErrorState`.
-
-### 4.2 Backend Architecture
-- **Fail-Closed Configuration (`backend/src/lib/config.ts`):**
-  - Application environment detection (`development`, `trial`, `production`).
-  - Strict payment mode guard: `PAYMENT_MODE=mock` is rejected in production and requires `DEMO_MODE=true`. Refuses to boot if required Supabase keys or Razorpay secrets are missing.
-- **Dual Supabase Client Architecture (`backend/src/lib/supabase.ts`):**
-  - `createRequestClient(req)`: Session-aware client configured with the caller's JWT, respecting PostgreSQL Row Level Security (RLS) policies.
-  - `serviceClient`: Privileged service-role client bypassing RLS for administrative background updates, audit log creation, and notification queuing.
-- **Error Mapping (`dbErrorStatus`):**
-  - Translates PostgreSQL/PostgREST error codes (e.g., `23505` unique violation, `23514` check constraint violation, `PGRST116` single row not found) into appropriate `400`/`404` client responses rather than leaking `500` server errors.
-
----
-
-## 5. Project Directory Structure
-
-```
-Medilink/
-├── medilink/                          # Main Application Root (Git Repository)
-│   ├── backend/                       # Express.js REST API Server
-│   │   ├── Dockerfile                 # Backend container definition
-│   │   ├── MIGRATION.md               # Express migration notes
-│   │   ├── package.json               # Backend dependencies & npm scripts
-│   │   ├── tsconfig.json              # TypeScript compiler configuration
-│   │   ├── src/
-│   │   │   ├── index.ts               # Express server entry point & middleware pipeline
-│   │   │   ├── openapi.json           # Interactive Swagger OpenAPI 3.0 specification
-│   │   │   ├── lib/                   # Shared backend utility libraries
-│   │   │   │   ├── billing.ts         # Automatic invoice generation algorithms
-│   │   │   │   ├── config.ts          # Centralized fail-closed environment configuration
-│   │   │   │   ├── dates.ts           # ISO/YMD calendar date validation
-│   │   │   │   ├── email.ts           # Brevo transactional email sender
-│   │   │   │   ├── errors.ts          # Custom Application Error classes
-│   │   │   │   ├── ids.ts             # ID generators (APT-, PAT-, INV-)
-│   │   │   │   ├── logger.ts          # Request and error logging wrapper
-│   │   │   │   ├── roles.ts           # Central role registry and permission helper groups
-│   │   │   │   ├── sms.ts             # Twilio SMS delivery service
-│   │   │   │   ├── supabase.ts        # Supabase client factory and PostgREST error mapper
-│   │   │   │   └── whatsapp.ts        # Meta WhatsApp Business Cloud API client
-│   │   │   ├── middleware/            # Express middleware handlers
-│   │   │   │   ├── auth.ts            # requireAuth & requireRole RBAC guards
-│   │   │   │   ├── errorHandler.ts    # Global error interceptor and response formatter
-│   │   │   │   ├── idempotency.ts     # Header-based Idempotency-Key caching
-│   │   │   │   ├── logger.ts          # HTTP request profiling logger
-│   │   │   │   ├── security.ts        # Rate limiters (apiLimiter, authLimiter, bookingLimiter)
-│   │   │   │   ├── timeout.ts         # Request timeout guard (30 seconds)
-│   │   │   │   └── validate.ts        # Body & query required field validators
-│   │   │   └── routes/                # 16 Modular REST Route Controllers
-│   │   │       ├── admin.ts           # Departments, doctors, appointment approvals
-│   │   │       ├── appointments.ts    # Booking, privacy-preserving tracking, consent
-│   │   │       ├── audit.ts           # Administrative audit log retrieval
-│   │   │       ├── billing.ts         # Invoicing, payments, revenue analytics
-│   │   │       ├── contact.ts         # Public contact message handling
-│   │   │       ├── doctor.ts          # Clinical queue, prescriptions, patient history
-│   │   │       ├── emergency.ts       # Public bed status, SOS dispatch, emergency cases
-│   │   │       ├── insurance.ts       # Policy management & claims processing
-│   │   │       ├── lab.ts             # Diagnostic test queue & report uploading
-│   │   │       ├── notifications.ts   # In-app notification creation & read status
-│   │   │       ├── patients.ts        # Patient registration
-│   │   │       ├── payment.ts         # Razorpay orders, UPI QR, HMAC verification
-│   │   │       ├── pharmacy.ts        # Medicine inventory, orders, dispensing queue
-│   │   │       ├── reception.ts       # Walk-in triage, check-in, doctor roster
-│   │   │       ├── reminders.ts       # Automated medication dosage reminders
-│   │   │       └── telemedicine.ts    # Video consultation session management
-│   │   └── test/
-│   │       └── security.test.ts       # In-memory mock automated security test suite (18 tests)
-│   ├── frontend/                      # Next.js 16 React Web Application
-│   │   ├── Dockerfile                 # Frontend container definition
-│   │   ├── next.config.ts             # Next.js rewrites, image remote patterns, optimizations
-│   │   ├── package.json               # Frontend dependencies & npm scripts
-│   │   ├── postcss.config.mjs         # PostCSS configuration for Tailwind v4
-│   │   ├── tsconfig.json              # Frontend TypeScript configuration
-│   │   ├── public/                    # Static assets, branding logos, icons
-│   │   └── src/
-│   │       ├── app/                   # App Router pages and layouts (28 routes)
-│   │       │   ├── globals.css        # Core design system tokens (OKLCH & legacy variables)
-│   │       │   ├── layout.tsx         # Root layout with fonts, theme provider, toasts
-│   │       │   ├── page.tsx           # Home landing page
-│   │       │   ├── (public)/          # Public marketing layouts
-│   │       │   ├── about/             # About Medilink page
-│   │       │   ├── admin/             # Hospital Admin portal
-│   │       │   ├── appointment/       # Online appointment booking page
-│   │       │   ├── billing/           # Billing & revenue management portal
-│   │       │   ├── contact/           # Contact & inquiry form page
-│   │       │   ├── departments/       # Medical specialty departments catalog
-│   │       │   ├── doctor/            # Doctor workstation & queue portal
-│   │       │   ├── doctors/           # Public doctor directory
-│   │       │   ├── emergency/         # Emergency SOS & triage portal
-│   │       │   ├── insurance/         # Health insurance portal
-│   │       │   ├── lab/               # Diagnostic laboratory portal
-│   │       │   ├── login/             # Centralized staff login page
-│   │       │   ├── medicine-remainders/# Public medicine reminder interface
-│   │       │   ├── packages/          # Health checkup packages
-│   │       │   ├── patient/           # Patient dashboard, tracking, journey, auth
-│   │       │   ├── pharmacy/          # E-pharmacy catalog, cart, tracking, portal
-│   │       │   ├── reception/         # Reception desk & walk-in queue portal
-│   │       │   ├── services/          # Hospital clinical services catalog
-│   │       │   ├── super-admin/       # Platform superuser administration portal
-│   │       │   ├── telemedicine/      # Telemedicine video consultation portal
-│   │       │   └── terms/             # Legal, privacy, and refund policies
-│   │       ├── components/            # Reusable UI component library
-│   │       │   ├── BrandLogo.tsx      # Responsive SVG branding logo
-│   │       │   ├── dashboard/         # Dashboard shell, tables, metrics, banners
-│   │       │   ├── payment/           # Razorpay checkout, UPI QR modal, hospital bills
-│   │       │   ├── pharmacy/          # Cart drawer, reminder modals, medicine cards
-│   │       │   ├── public/            # Public navbar, footer, interactive chatbot, pickers
-│   │       │   └── sections/          # Landing page modular marketing sections
-│   │       ├── context/               # React Context providers (PharmacyCartContext)
-│   │       ├── hooks/                 # Custom React hooks
-│   │       ├── lib/                   # Frontend helpers (apiFetch, redirects, roles, supabase)
-│   │       └── types/                 # TypeScript entity definitions (17 type files)
-│   ├── supabase/                      # Database Migrations, Seeds & Scripts
-│   │   ├── DATABASE_SETUP.md          # Step-by-step database setup documentation
-│   │   ├── reset-db.ps1               # Automated PowerShell database wipe & seed script
-│   │   ├── reset-db.sh                # Automated Bash database wipe & seed script
-│   │   ├── migrations/
-│   │   │   ├── 001_initial_schema.sql # Core tables, constraints, foreign keys, RLS
-│   │   │   ├── 002_align_backend_schema.sql # Alignments (lab_reports, medical_records, status checks)
-│   │   │   └── 003_security_hardening.sql # Consent audit log, employee_id, storage bucket
-│   │   └── seed/
-│   │       └── uat_seed_data.sql      # Idempotent UAT seed records with 13 demo accounts
-│   ├── docs/                          # Comprehensive technical documentation folder
-│   ├── package.json                   # Root monorepo workspace orchestration
-│   ├── render.yaml                    # Cloud deployment specification for Render
-│   └── vercel.json                    # Frontend deployment specification for Vercel
+│   Authentication    │      │  PostgreSQL Store   │     │ Notification / Pay  │
+│  (Supabase GoTrue)  │      │ (28 Tables / RLS)   │     │ (Razorpay / Comms)  │
+└─────────────────────┘      └─────────────────────┘     └─────────────────────┘
 ```
 
 ---
 
-## 6. User Roles & Role-Wise Access Matrix
+## 5. Security & Access Control Architecture
 
-| Role Constant | Human-Readable Label | Default Dashboard Route | Primary Accessible Modules & Permissions |
-|---|---|---|---|
-| `SUPER_ADMIN` | Super Admin | `/super-admin/dashboard` | Unrestricted global access; system settings; audit logs; user role management |
-| `HOSPITAL_ADMIN` / `ADMIN` | Hospital Admin | `/admin/dashboard` | Department & doctor management; appointment approvals; staff rosters; contact messages |
-| `DEPARTMENT_ADMIN` | Department Admin | `/admin/dashboard` | Department-specific clinician management and appointment oversight |
-| `DOCTOR` | Doctor | `/doctor/queue` | Clinical consultation queue; prescription writing; lab ordering; patient medical history |
-| `NURSE` | Nurse | `/reception/dashboard` | Patient vital signs recording; reception support; inpatient care assistance |
-| `RECEPTIONIST` / `RECEPTION_ADMIN` | Receptionist | `/reception/dashboard` | Walk-in queue; appointment check-in; doctor availability toggling; invoice initiation |
-| `LAB_TECHNICIAN` / `LAB_ADMIN` / `TESTER` | Lab Staff | `/lab/queue` | Diagnostic test queue; status progression; report uploading; pathologist verification |
-| `PHARMACIST` / `PHARMACY_ADMIN` | Pharmacist | `/pharmacy/queue` | Prescription dispensing; public order fulfillment; inventory stock control; vendors |
-| `BILLING` / `BILLING_STAFF` / `BILLING_ADMIN` | Billing Staff | `/billing/dashboard` | Invoice generation; payment reconciliation; revenue analytics; cash receipts |
-| `INSURANCE` / `INSURANCE_STAFF` / `INSURANCE_ADMIN` | Insurance Staff | `/insurance/dashboard` | Insurance policy tracking; claim approval/rejection; invoice deduction updates |
-| `EMERGENCY` / `EMERGENCY_STAFF` / `EMERGENCY_ADMIN` | Emergency Staff | `/emergency/dashboard` | SOS dispatch management; emergency case triage; ward bed assignments |
-| `TELEMEDICINE` / `TELEMEDICINE_ADMIN` | Telemedicine Staff | `/telemedicine/dashboard` | Remote video session scheduling; session monitoring; recording management |
-| `PATIENT` | Patient | `/patient/dashboard` | Personal appointment booking; track status; view prescriptions, lab reports, & bills |
+### 5.1 RBAC Role Matrix (24 Roles)
+The system defines 24 canonical uppercase user roles in `backend/src/lib/roles.ts`:
+1. `SUPER_ADMIN`: Superuser access across all hospital branches and modules.
+2. `ADMIN` / `HOSPITAL_ADMIN`: General administrative and hospital management.
+3. `DEPARTMENT_ADMIN`: Departmental specialty oversight.
+4. `DOCTOR`: Clinical consultation, prescription authoring, lab test ordering.
+5. `NURSE`: Ward observation and patient care.
+6. `RECEPTIONIST` / `RECEPTION_ADMIN`: Walk-in intake, check-in, doctor roster.
+7. `LAB_TECHNICIAN` / `LAB_ADMIN` / `TESTER`: Specimen collection, lab reports, pathology verification.
+8. `PHARMACIST` / `PHARMACY_ADMIN`: Medicine inventory, prescription dispensing, public order fulfillment.
+9. `BILLING` / `BILLING_STAFF` / `BILLING_ADMIN`: Invoice generation, payments, revenue reports.
+10. `INSURANCE` / `INSURANCE_STAFF` / `INSURANCE_ADMIN`: Claims adjudication and policy verification.
+11. `EMERGENCY` / `EMERGENCY_STAFF` / `EMERGENCY_ADMIN`: Emergency SOS dispatch and triage ward beds.
+12. `TELEMEDICINE` / `TELEMEDICINE_ADMIN`: Video consultation scheduling and management.
+13. `PATIENT`: Patient self-service portal (own records only).
+
+### 5.2 Access Control & IDOR Mitigations
+- Token parsing via `requireAuth` (`backend/src/middleware/auth.ts`).
+- Role authorization via `requireRole(...)`.
+- Ownership verification on reminders, consent, insurance claims, and telemedicine sessions.
+- Inactive user blocking (`is_active === false` returns `403 Forbidden`).
 
 ---
 
-## 7. Major System Workflows & Data Flows
+## 6. Database Entity Overview (28 Tables)
 
-### 7.1 Outpatient Care Lifecycle (Booking to Discharge)
+| # | Table Name | Purpose | Primary Key | Key Relations |
+|---|---|---|---|---|
+| 1 | `profiles` | User profiles and role attributes | `id UUID` | FK to `auth.users(id)` |
+| 2 | `departments` | Medical specialty departments | `id UUID` | - |
+| 3 | `doctors` | Practitioner qualifications and fees | `id UUID` | FK `profile_id`, `department_id` |
+| 4 | `patients` | Patient demographic records | `id UUID` | FK `profile_id` |
+| 5 | `appointments` | Central clinical care encounters | `id UUID` | FK `patient_id`, `doctor_id`, `department_id` |
+| 6 | `prescriptions` | Doctor consultation prescriptions | `id UUID` | FK `appointment_id`, `doctor_id` |
+| 7 | `prescription_items` | Prescribed medicine line items | `id UUID` | FK `prescription_id` |
+| 8 | `medicines` | Pharmacy catalog and inventory | `id UUID` | - |
+| 9 | `medicine_reminders` | Dosage schedule alerts | `id UUID` | FK `profile_id`, `medicine_id` |
+| 10 | `pharmacy_public_orders`| E-commerce patient medicine orders | `id UUID` | - |
+| 11 | `lab_tests` | Diagnostic lab test orders | `id UUID` | FK `appointment_id`, `patient_id` |
+| 12 | `lab_reports` | Digital pathology test reports | `id UUID` | FK `lab_test_id` |
+| 13 | `invoices` | Patient hospital invoices | `id UUID` | FK `appointment_id` |
+| 14 | `payments` | Financial payment transactions | `id UUID` | FK `invoice_id` |
+| 15 | `insurance_policies` | Health insurance coverage policies | `id UUID` | FK `patient_id` |
+| 16 | `insurance_claims` | Insurance deduction claims | `id UUID` | FK `policy_id`, `appointment_id` |
+| 17 | `emergency_cases` | Trauma and emergency triage cases | `id UUID` | FK `bed_id` |
+| 18 | `emergency_sos_requests`| Public SOS dispatch requests | `id UUID` | FK `case_id` |
+| 19 | `beds` | Hospital ward bed allocation | `id UUID` | - |
+| 20 | `telemedicine_sessions`| Video consultation records | `id UUID` | FK `appointment_id` |
+| 21 | `medical_records` | Historical clinical documents | `id UUID` | FK `patient_id` |
+| 22 | `notifications` | User in-app notifications | `id UUID` | FK `user_id` |
+| 23 | `contact_messages` | Public contact submissions | `id UUID` | - |
+| 24 | `audit_logs` | System activity audit trails | `id UUID` | FK `actor_id` |
+| 25 | `consent_audit_log` | Immutable patient consent ledger | `id UUID` | FK `appointment_id`, `actor_id` |
+| 26 | `walk_in_queue` | Reception triage queue | `id UUID` | FK `patient_id` |
+| 27 | `medicine_vendors` | Pharmacy suppliers | `id UUID` | - |
+| 28 | `packages` | Health checkup packages | `id UUID` | - |
+
+---
+
+## 7. End-to-End Clinical Lifecycle Workflow
+
 ```
-1. Patient books appointment on web portal (/appointment)
-   ↳ POST /api/appointments/create -> Status: PENDING (Code generated: APT-XXXX)
-   ↳ Brevo Email + Meta WhatsApp + Twilio SMS confirmation dispatched
+1. Patient books appointment (/appointment or public API)
+   ↳ POST /api/appointments/create -> Status: PENDING (APT-XXXX)
+   ↳ Patient notified via SMS / WhatsApp / Email
 
-2. Admin / Doctor approves appointment (/admin/dashboard)
-   ↳ POST /api/admin/appointments/approve -> Status: APPROVED (Doctor assigned)
-   ↳ In-app notification created for patient
+2. Hospital Admin reviews & assigns Doctor (/admin/dashboard)
+   ↳ POST /api/admin/appointments/approve -> Status: APPROVED
 
-3. Patient checks in at Reception (/reception/dashboard)
-   ↳ POST /api/reception/check-in -> Status: APPROVED / IN_PROGRESS
-   ↳ Initial consultation invoice record created (Status: UNPAID)
-
-4. Doctor conducts consultation (/doctor/queue)
-   ↳ PATCH /api/doctor/start-consultation -> Status: IN_PROGRESS
-   ↳ POST /api/doctor/prescription -> Prescriptions saved, Lab test created (Status: LAB_REQUESTED)
-   ↳ Auto-invoice generated with consultation + lab + medicine charges
-
-5. Patient confirms consent (/patient/dashboard or staff PIN assisted)
-   ↳ POST /api/appointments/:id/consent -> Status: LAB_REQUESTED or PRESCRIPTION_READY
+3. Patient / Staff records Consent (/patient/dashboard or /reception/dashboard)
+   ↳ POST /api/appointments/:id/consent -> Status: PENDING_PATIENT_APPROVAL -> APPROVED
    ↳ Immutable record written to consent_audit_log
 
-6. Lab technician processes diagnostic test (/lab/queue)
-   ↳ PATCH /api/lab/update-status -> Status: LAB_PROCESSING -> COMPLETED
-   ↳ POST /api/lab/upload-report -> PDF stored in Supabase, report notified to patient
+4. Doctor starts consultation (/doctor/queue)
+   ↳ PATCH /api/doctor/start-consultation -> Status: IN_PROGRESS
 
-7. Pharmacist dispenses medications (/pharmacy/queue)
+5. Doctor orders diagnostic tests & issues prescription (/doctor/queue)
+   ↳ POST /api/doctor/prescription -> Prescriptions recorded
+   ↳ If lab required: Status: LAB_REQUESTED -> Diagnostic test created
+
+6. Laboratory collects specimen & verifies report (/lab/queue)
+   ↳ PATCH /api/lab/update-status -> Status: LAB_PROCESSING -> LAB_COMPLETED
+   ↳ POST /api/lab/upload-report -> PDF uploaded to lab-reports bucket
+   ↳ PATCH /api/lab/verify-report -> Status: VERIFIED
+
+7. Pharmacy dispenses prescribed medicines (/pharmacy/queue)
    ↳ PATCH /api/pharmacy/queue -> Status: PHARMACY_FULFILLED
-   ↳ Medicine stock decremented in medicines table, patient notified
+   ↳ Stock decremented in medicines table, invoice auto-generated
 
 8. Billing staff / Patient completes payment (/billing/dashboard or online Razorpay)
    ↳ POST /api/payment/verify or PATCH /api/billing/pay -> Status: PAID -> COMPLETED

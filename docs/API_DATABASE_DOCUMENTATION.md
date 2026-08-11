@@ -1,11 +1,16 @@
 # MEDILINK Healthcare — API & Database Technical Documentation
 
-**Document Version:** 1.0.0  
+**Documentation Status:** Final  
+Documentation reflects the current implementation, validation results, resolved observations, supporting evidence, and remaining project items as verified during the final documentation review.
+
+**Document Title:** API & Database Architecture, Endpoint Inventory, and Schema Specification  
 **Project Name:** MEDILINK Digital Health Care  
-**Backend Framework:** Express.js 4.21.2 (Node.js / TypeScript 5)  
+**Repository:** `medilink-healthcare`  
+**Backend Framework:** Express.js 4.21.2 (Node.js / TypeScript 5.x)  
 **Database Technology:** PostgreSQL (Hosted on Supabase) with PostgREST & Row Level Security (RLS)  
 **Target Environments:** Development, UAT / Trial, Production  
-**Last Verified Date:** August 2026  
+**Document Version:** 1.0.0  
+**Last Verified Date:** August 11, 2026  
 
 ---
 
@@ -87,93 +92,93 @@ MEDILINK uses a decoupled, hybrid service-oriented architecture:
 
 | Module | Endpoint | Method | Authentication | Authorization | Purpose | Status |
 |---|---|---|---|---|---|---|
-| **System** | `/health` | `GET` | None (Public) | None | Returns server health, uptime, and timestamp | ✅ Verified |
-| **System** | `/health` | `ALL` (Non-GET) | None (Public) | None | Returns `405 Method Not Allowed` with `Allow: GET` header | ✅ Verified |
-| **System** | `/` | `GET` | None (Public) | None | API landing page with module route inventory and system status | ✅ Verified |
-| **System** | `/api-docs` | `GET` | None (Public) | None | Swagger UI interactive OpenAPI 3.0 documentation | ✅ Verified |
-| **Admin** | `/api/admin/departments` | `GET` | None (Public) | None | Lists all hospital departments (cached with public Cache-Control) | ✅ Verified |
-| **Admin** | `/api/admin/departments` | `POST` | Required | `ADMIN_ROLES` | Creates a new hospital department | ✅ Verified |
-| **Admin** | `/api/admin/departments` | `PATCH` | Required | `ADMIN_ROLES` | Updates department details or toggles `is_active` state | ✅ Verified |
-| **Admin** | `/api/admin/doctors` | `GET` | None (Public) | None | Lists active doctors with flattened profile and department data (PII stripped) | ✅ Verified |
-| **Admin** | `/api/admin/doctors` | `POST` | Required | `ADMIN_ROLES` | Registers a doctor record linked to an existing profile | ✅ Verified |
-| **Admin** | `/api/admin/doctors` | `PATCH` | Required | `ADMIN_ROLES` | Updates doctor qualification, fee, availability, or department | ✅ Verified |
-| **Admin** | `/api/admin/appointments/approve` | `POST` | Required | `APPT_MANAGE_ROLES` | Approves pending appointment, assigns doctor, creates audit log & patient notification | ✅ Verified |
-| **Admin** | `/api/admin/appointments/reject` | `POST` | Required | `APPT_MANAGE_ROLES` | Rejects appointment and records audit log | ✅ Verified |
-| **Admin** | `/api/admin/appointments/update-status` | `PATCH` | Required | `APPT_MANAGE_ROLES` | Updates appointment status (`APPROVED` or `REJECTED`) and doctor assignment | ✅ Verified |
-| **Admin** | `/api/admin/contact-messages` | `GET` | Required | `ADMIN_ROLES` | Lists all contact messages submitted via public form | ✅ Verified |
-| **Admin** | `/api/admin/contact-messages` | `PATCH` | Required | `ADMIN_ROLES` | Updates contact message status (`NEW`, `READ`, `RESOLVED`) | ✅ Verified |
-| **Appointments** | `/api/appointments/create` | `POST` | None (Public) | None (Rate Limited: `bookingLimiter`) | Books new appointment, auto-registers patient if new, triggers Email/SMS/WhatsApp notifications | ✅ Verified |
-| **Appointments** | `/api/appointments/create` | `ALL` (Non-POST) | None (Public) | None | Returns `405 Method Not Allowed` with `Allow: POST` header | ✅ Verified |
-| **Appointments** | `/api/appointments/track` | `POST` | None (Public) | None | Secure tracking by code returning minimal non-sensitive data (PII and medical data stripped) | ✅ Verified |
-| **Appointments** | `/api/appointments/:id?/consent` | `POST` | Required | `PATIENT` (Owner) / `STAFF_ROLES` (with PIN) | Records simulated patient consent or staff-assisted consent with audit logging | ✅ Verified |
-| **Doctor** | `/api/doctor/queue` | `GET` | Required | `DOCTOR_ROLES` | Retrieves queue of assigned and unassigned department appointments with lab reports | ✅ Verified |
-| **Doctor** | `/api/doctor/start-consultation` | `PATCH` | Required | `DOCTOR_ROLES` | Sets appointment status to `IN_PROGRESS` and logs audit entry | ✅ Verified |
-| **Doctor** | `/api/doctor/prescription` | `POST` | Required | `DOCTOR_ROLES` | Submits prescription items, auto-creates lab request if needed, auto-generates invoice, notifies patient | ✅ Verified |
-| **Doctor** | `/api/doctor/lab-report` | `GET` | Required | `DOCTOR_ROLES` | Retrieves lab report associated with an appointment | ✅ Verified |
-| **Doctor** | `/api/doctor/complete` | `PATCH` | Required | `DOCTOR_ROLES` | Marks consultation complete (`COMPLETED`) and logs audit entry | ✅ Verified |
-| **Doctor** | `/api/doctor/patient-history` | `GET` | Required | `DOCTOR_ROLES` | Fetches consolidated patient history (appointments, prescriptions, lab tests, medical records) | ✅ Verified |
-| **Patients** | `/api/patients/register` | `POST` | None (Public) | None (Rate Limited: `authLimiter`) | Registers a new patient record with generated `patient_code` | ✅ Verified |
-| **Patients** | `/api/patients/register` | `ALL` (Non-POST) | None (Public) | None | Returns `405 Method Not Allowed` with `Allow: POST` header | ✅ Verified |
-| **Contact** | `/api/contact` | `POST` | None (Public) | None (Payload limit: 100KB) | Submits public inquiry/contact message with strict sanitization | ✅ Verified |
-| **Payment** | `/api/payment/public-settings` | `GET` | None (Public) | None | Returns public Razorpay key ID, payment mode (`mock`/`razorpay`), and demo status | ✅ Verified |
-| **Payment** | `/api/payment/settings` | `GET` | Required | `SUPER_ADMIN` | Returns server payment mode and configuration status (secrets never exposed) | ✅ Verified |
-| **Payment** | `/api/payment/settings` | `POST` | Required | `SUPER_ADMIN` | Disabled for security (returns `400` instructing env var configuration) | ✅ Verified |
-| **Payment** | `/api/payment/create-order` | `POST` | Required | Authenticated | Creates a Razorpay order or mock order verified against database total | ✅ Verified |
-| **Payment** | `/api/payment/create-qr` | `POST` | Required | Authenticated | Generates dynamic UPI QR code (Razorpay QR API or mock QR) | ✅ Verified |
-| **Payment** | `/api/payment/verify-qr` | `POST` | None (Public) | None | Verifies UPI QR payment status, records payment, updates invoice/order to `PAID`/`CONFIRMED` | ✅ Verified |
-| **Payment** | `/api/payment/verify` | `POST` | None (Public) | None | Verifies Razorpay HMAC-SHA256 signature, validates invoice amount, records payment idempotently | ✅ Verified |
-| **Payment** | `/api/payment/mark-cash` | `POST` | Required | Authenticated | Records manual cash payment against an invoice or pharmacy order | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/medicines` | `GET` | None (Public) | None | Lists available medicines in catalog (returns `isAdmin` flag if authenticated staff) | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/medicines` | `POST` | Required | `PHARMACY_ROLES` | Adds new medicine or increments existing medicine stock | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/inventory` | `GET` | Required | `PHARMACY_ROLES` | Lists full medicine inventory including batch, expiry, supplier, and reorder levels | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/inventory` | `PATCH` | Required | `PHARMACY_ROLES` | Updates stock quantity, price, reorder level, or availability | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/orders` | `POST` | None (Public) | None | Places online medicine order with authoritative server-side price & stock verification | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/orders/track` | `POST` | None (Public) | None | Tracks pharmacy public order by Order UUID or patient phone number | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/orders` | `GET` | Required | `PHARMACY_ROLES` | Lists all public pharmacy orders | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/orders` | `PATCH` | Required | `PHARMACY_ROLES` | Updates pharmacy order status (`CONFIRMED`, `PROCESSING`, `SHIPPED`, etc.) | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/queue` | `GET` | Required | `PHARMACY_ROLES` | Lists active prescription fulfillment queue with medicine items and patient details | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/queue` | `PATCH` | Required | `PHARMACY_ROLES` | Dispenses prescription, decrements medicine stock, auto-generates invoice, notifies patient | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/vendors` | `GET` | Required | `PHARMACY_ROLES` | Lists pharmacy medicine suppliers and vendors | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/vendors` | `POST` | Required | `PHARMACY_ROLES` | Registers a new medicine vendor | ✅ Verified |
-| **Pharmacy** | `/api/pharmacy/questions` | `POST` | None (Public) | None | Submits public inquiry/question to pharmacist | ✅ Verified |
-| **Reminders** | `/api/reminders` | `GET` | Required | `PATIENT` (Owner) / `STAFF_ROLES` | Lists medicine reminders for the authenticated patient | ✅ Verified |
-| **Reminders** | `/api/reminders` | `POST` | Optional Auth | Public / Auto-linked | Creates medicine reminder (links to caller profile if authenticated, prevents body injection) | ✅ Verified |
-| **Reminders** | `/api/reminders/:id?` | `PUT` | Required | `PATIENT` (Owner) / `STAFF_ROLES` | Updates reminder schedule/notes with strict ownership verification (prevents IDOR) | ✅ Verified |
-| **Reminders** | `/api/reminders/:id?` | `DELETE` | Required | `PATIENT` (Owner) / `STAFF_ROLES` | Deletes reminder with strict ownership verification (prevents IDOR) | ✅ Verified |
-| **Lab** | `/api/lab/queue` | `GET` | Required | `LAB_ROLES` | Lists diagnostic test queue with patient names, doctor names, and verified report links | ✅ Verified |
-| **Lab** | `/api/lab/update-status` | `PATCH` | Required | `LAB_ROLES` | Updates test status (`COLLECTED`, `PROCESSING`, `COMPLETED`, `VERIFIED`), cascades appointment status | ✅ Verified |
-| **Lab** | `/api/lab/upload-report` | `POST` | Required | `LAB_ROLES` | Uploads lab report URL/summary, marks test completed, sends Email/SMS/WhatsApp to patient | ✅ Verified |
-| **Lab** | `/api/lab/verify-report` | `PATCH` | Required | `LAB_ROLES` | Marks report verified by pathologist and marks linked `lab_test` as `VERIFIED` | ✅ Verified |
-| **Lab** | `/api/lab/reports` | `GET` | Required | `LAB_ROLES` | Lists all historical lab reports with verification timestamps | ✅ Verified |
-| **Billing** | `/api/billing/invoices` | `GET` | Required | `BILLING_ROLES` | Lists all generated patient invoices with charge breakdowns | ✅ Verified |
-| **Billing** | `/api/billing/generate` | `POST` | Required | `BILLING_ROLES` | Manually generates itemized invoice with consultation, lab, medicine, and insurance deductions | ✅ Verified |
-| **Billing** | `/api/billing/pay` | `PATCH` | Required | `BILLING_ROLES` | Marks invoice `PAID`, records payment, completes appointment, sends patient notification | ✅ Verified |
-| **Billing** | `/api/billing/revenue` | `GET` | Required | `BILLING_ROLES` | Computes revenue analytics (confirmed payments, insurance total, pending receivables, breakdown) | ✅ Verified |
-| **Billing** | `/api/billing/payments` | `GET` | Required | `BILLING_ROLES` | Lists all payment transaction records with joined invoice code and patient name | ✅ Verified |
-| **Insurance** | `/api/insurance/claims` | `GET` | Required | `INSURANCE_ROLES` | Lists all insurance claims and active patient insurance policies | ✅ Verified |
-| **Insurance** | `/api/insurance/create` | `POST` | Required | `PATIENT` (Self) / `INSURANCE_ROLES` | Submits new insurance claim (enforces patient ownership check) | ✅ Verified |
-| **Insurance** | `/api/insurance/approve` | `PATCH` | Required | `INSURANCE_ROLES` | Approves claim, records settled amount, updates linked invoice deduction and recalculates total | ✅ Verified |
-| **Insurance** | `/api/insurance/reject` | `PATCH` | Required | `INSURANCE_ROLES` | Rejects insurance claim with decision reason and logs audit event | ✅ Verified |
-| **Emergency** | `/api/emergency/public-status`| `GET` | None (Public) | None | Returns total beds, available beds, and per-ward availability breakdown | ✅ Verified |
-| **Emergency** | `/api/emergency/sos` | `POST` | None (Public) | None | Submits immediate emergency SOS dispatch request | ✅ Verified |
-| **Emergency** | `/api/emergency/sos-requests`| `GET` | Required | `EMERGENCY_ROLES` | Lists incoming unresolved emergency SOS requests for triage staff | ✅ Verified |
-| **Emergency** | `/api/emergency/sos-update` | `PATCH` | Required | `EMERGENCY_ROLES` | Updates SOS dispatch status (`DISPATCHED`, `ARRIVED`, `RESOLVED`, `CANCELLED`) | ✅ Verified |
-| **Emergency** | `/api/emergency/cases` | `GET` | Required | `EMERGENCY_ROLES` | Lists active emergency cases (excluding discharged) and current hospital bed occupancy | ✅ Verified |
-| **Emergency** | `/api/emergency/create` | `POST` | Required | `EMERGENCY_ROLES` | Creates new emergency triage case, handles SOS-to-Case conversion, logs audit entry | ✅ Verified |
-| **Emergency** | `/api/emergency/update-status`| `PATCH` | Required | `EMERGENCY_ROLES` | Updates triage case status (`WAITING`, `TREATING`, `ADMITTED`, `DISCHARGED`) | ✅ Verified |
-| **Emergency** | `/api/emergency/assign-bed` | `PATCH` | Required | `EMERGENCY_ROLES` | Assigns hospital bed to patient, marks bed occupied, updates case to `ADMITTED` | ✅ Verified |
-| **Telemedicine**| `/api/telemedicine/sessions` | `GET` | Required | `STAFF_ROLES` / `PATIENT` (Self) | Lists video consultation sessions (patients see only own, auto-expires missed sessions) | ✅ Verified |
-| **Telemedicine**| `/api/telemedicine/create` | `POST` | Required | `TELEMEDICINE_ADMIN_ROLES` | Schedules a new telemedicine video consultation session | ✅ Verified |
-| **Telemedicine**| `/api/telemedicine/update-status`| `PATCH`| Required | `TELEMEDICINE_ADMIN_ROLES` | Updates video session status (`ONGOING`, `COMPLETED`, `CANCELLED`, `MISSED`) | ✅ Verified |
-| **Reception** | `/api/reception/queue` | `GET` | Required | `REC_ROLES` | Fetches today's appointments, registered patients, doctor roster, and walk-in queue | ✅ Verified |
-| **Reception** | `/api/reception/walk-in` | `POST` | Required | `REC_ROLES` | Enqueues a walk-in patient with sequential queue position calculation | ✅ Verified |
-| **Reception** | `/api/reception/check-in` | `POST` | Required | `REC_ROLES` | Fast-tracks patient check-in, creates appointment & initial consultation invoice | ✅ Verified |
-| **Reception** | `/api/reception/walk-in-status`| `PATCH`| Required | `REC_ROLES` | Updates walk-in patient status (`WAITING`, `IN_PROGRESS`, `DONE`, `CANCELLED`) | ✅ Verified |
-| **Reception** | `/api/reception/toggle-doctor`| `PATCH`| Required | `REC_ROLES` | Toggles real-time doctor availability status (`is_available: boolean`) | ✅ Verified |
-| **Notifications**| `/api/notifications` | `GET` | Required | Authenticated (Owner) | Returns user's in-app notification feed ordered by creation date | ✅ Verified |
-| **Notifications**| `/api/notifications/create` | `POST` | Required | `STAFF_ROLES` / `PATIENT` (Self) | Creates system or manual notification (patients restricted to notifying themselves) | ✅ Verified |
-| **Notifications**| `/api/notifications/read` | `PATCH` | Required | Authenticated (Owner) | Marks specific notification or all notifications as read (`is_read: true`) | ✅ Verified |
-| **Audit Logs** | `/api/audit-logs` | `GET` | Required | `ADMIN`, `SUPER_ADMIN`, `HOSPITAL_ADMIN` | Retrieves immutable audit trail logs (configurable limit up to 500 records) | ✅ Verified |
+| **System** | `/health` | `GET` | None (Public) | None | Returns server health, uptime, and timestamp | Verified |
+| **System** | `/health` | `ALL` (Non-GET) | None (Public) | None | Returns `405 Method Not Allowed` with `Allow: GET` header | Verified |
+| **System** | `/` | `GET` | None (Public) | None | API landing page with module route inventory and system status | Verified |
+| **System** | `/api-docs` | `GET` | None (Public) | None | Swagger UI interactive OpenAPI 3.0 documentation | Verified |
+| **Admin** | `/api/admin/departments` | `GET` | None (Public) | None | Lists all hospital departments (cached with public Cache-Control) | Verified |
+| **Admin** | `/api/admin/departments` | `POST` | Required | `ADMIN_ROLES` | Creates a new hospital department | Verified |
+| **Admin** | `/api/admin/departments` | `PATCH` | Required | `ADMIN_ROLES` | Updates department details or toggles `is_active` state | Verified |
+| **Admin** | `/api/admin/doctors` | `GET` | None (Public) | None | Lists active doctors with flattened profile and department data (PII stripped) | Verified |
+| **Admin** | `/api/admin/doctors` | `POST` | Required | `ADMIN_ROLES` | Registers a doctor record linked to an existing profile | Verified |
+| **Admin** | `/api/admin/doctors` | `PATCH` | Required | `ADMIN_ROLES` | Updates doctor qualification, fee, availability, or department | Verified |
+| **Admin** | `/api/admin/appointments/approve` | `POST` | Required | `APPT_MANAGE_ROLES` | Approves pending appointment, assigns doctor, creates audit log & patient notification | Verified |
+| **Admin** | `/api/admin/appointments/reject` | `POST` | Required | `APPT_MANAGE_ROLES` | Rejects appointment and records audit log | Verified |
+| **Admin** | `/api/admin/appointments/update-status` | `PATCH` | Required | `APPT_MANAGE_ROLES` | Updates appointment status (`APPROVED` or `REJECTED`) and doctor assignment | Verified |
+| **Admin** | `/api/admin/contact-messages` | `GET` | Required | `ADMIN_ROLES` | Lists all contact messages submitted via public form | Verified |
+| **Admin** | `/api/admin/contact-messages` | `PATCH` | Required | `ADMIN_ROLES` | Updates contact message status (`NEW`, `READ`, `RESOLVED`) | Verified |
+| **Appointments** | `/api/appointments/create` | `POST` | None (Public) | None (Rate Limited: `bookingLimiter`) | Books new appointment, auto-registers patient if new, triggers Email/SMS/WhatsApp notifications | Verified |
+| **Appointments** | `/api/appointments/create` | `ALL` (Non-POST) | None (Public) | None | Returns `405 Method Not Allowed` with `Allow: POST` header | Verified |
+| **Appointments** | `/api/appointments/track` | `POST` | None (Public) | None | Secure tracking by code returning minimal non-sensitive data (PII and medical data stripped) | Verified |
+| **Appointments** | `/api/appointments/:id?/consent` | `POST` | Required | `PATIENT` (Owner) / `STAFF_ROLES` (with PIN) | Records simulated patient consent or staff-assisted consent with audit logging | Verified |
+| **Doctor** | `/api/doctor/queue` | `GET` | Required | `DOCTOR_ROLES` | Retrieves queue of assigned and unassigned department appointments with lab reports | Verified |
+| **Doctor** | `/api/doctor/start-consultation` | `PATCH` | Required | `DOCTOR_ROLES` | Sets appointment status to `IN_PROGRESS` and logs audit entry | Verified |
+| **Doctor** | `/api/doctor/prescription` | `POST` | Required | `DOCTOR_ROLES` | Submits prescription items, auto-creates lab request if needed, auto-generates invoice, notifies patient | Verified |
+| **Doctor** | `/api/doctor/lab-report` | `GET` | Required | `DOCTOR_ROLES` | Retrieves lab report associated with an appointment | Verified |
+| **Doctor** | `/api/doctor/complete` | `PATCH` | Required | `DOCTOR_ROLES` | Marks consultation complete (`COMPLETED`) and logs audit entry | Verified |
+| **Doctor** | `/api/doctor/patient-history` | `GET` | Required | `DOCTOR_ROLES` | Fetches consolidated patient history (appointments, prescriptions, lab tests, medical records) | Verified |
+| **Patients** | `/api/patients/register` | `POST` | None (Public) | None (Rate Limited: `authLimiter`) | Registers a new patient record with generated `patient_code` | Verified |
+| **Patients** | `/api/patients/register` | `ALL` (Non-POST) | None (Public) | None | Returns `405 Method Not Allowed` with `Allow: POST` header | Verified |
+| **Contact** | `/api/contact` | `POST` | None (Public) | None (Payload limit: 100KB) | Submits public inquiry/contact message with strict sanitization | Verified |
+| **Payment** | `/api/payment/public-settings` | `GET` | None (Public) | None | Returns public Razorpay key ID, payment mode (`mock`/`razorpay`), and demo status | Verified |
+| **Payment** | `/api/payment/settings` | `GET` | Required | `SUPER_ADMIN` | Returns server payment mode and configuration status (secrets never exposed) | Verified |
+| **Payment** | `/api/payment/settings` | `POST` | Required | `SUPER_ADMIN` | Disabled for security (returns `400` instructing env var configuration) | Verified |
+| **Payment** | `/api/payment/create-order` | `POST` | Required | Authenticated | Creates a Razorpay order or mock order verified against database total | Verified |
+| **Payment** | `/api/payment/create-qr` | `POST` | Required | Authenticated | Generates dynamic UPI QR code (Razorpay QR API or mock QR) | Verified |
+| **Payment** | `/api/payment/verify-qr` | `POST` | None (Public) | None | Verifies UPI QR payment status, records payment, updates invoice/order to `PAID`/`CONFIRMED` | Verified |
+| **Payment** | `/api/payment/verify` | `POST` | None (Public) | None | Verifies Razorpay HMAC-SHA256 signature, validates invoice amount, records payment idempotently | Verified |
+| **Payment** | `/api/payment/mark-cash` | `POST` | Required | Authenticated | Records manual cash payment against an invoice or pharmacy order | Verified |
+| **Pharmacy** | `/api/pharmacy/medicines` | `GET` | None (Public) | None | Lists available medicines in catalog (returns `isAdmin` flag if authenticated staff) | Verified |
+| **Pharmacy** | `/api/pharmacy/medicines` | `POST` | Required | `PHARMACY_ROLES` | Adds new medicine or increments existing medicine stock | Verified |
+| **Pharmacy** | `/api/pharmacy/inventory` | `GET` | Required | `PHARMACY_ROLES` | Lists full medicine inventory including batch, expiry, supplier, and reorder levels | Verified |
+| **Pharmacy** | `/api/pharmacy/inventory` | `PATCH` | Required | `PHARMACY_ROLES` | Updates stock quantity, price, reorder level, or availability | Verified |
+| **Pharmacy** | `/api/pharmacy/orders` | `POST` | None (Public) | None | Places online medicine order with authoritative server-side price & stock verification | Verified |
+| **Pharmacy** | `/api/pharmacy/orders/track` | `POST` | None (Public) | None | Tracks pharmacy public order by Order UUID or patient phone number | Verified |
+| **Pharmacy** | `/api/pharmacy/orders` | `GET` | Required | `PHARMACY_ROLES` | Lists all public pharmacy orders | Verified |
+| **Pharmacy** | `/api/pharmacy/orders` | `PATCH` | Required | `PHARMACY_ROLES` | Updates pharmacy order status (`CONFIRMED`, `PROCESSING`, `SHIPPED`, etc.) | Verified |
+| **Pharmacy** | `/api/pharmacy/queue` | `GET` | Required | `PHARMACY_ROLES` | Lists active prescription fulfillment queue with medicine items and patient details | Verified |
+| **Pharmacy** | `/api/pharmacy/queue` | `PATCH` | Required | `PHARMACY_ROLES` | Dispenses prescription, decrements medicine stock, auto-generates invoice, notifies patient | Verified |
+| **Pharmacy** | `/api/pharmacy/vendors` | `GET` | Required | `PHARMACY_ROLES` | Lists pharmacy medicine suppliers and vendors | Verified |
+| **Pharmacy** | `/api/pharmacy/vendors` | `POST` | Required | `PHARMACY_ROLES` | Registers a new medicine vendor | Verified |
+| **Pharmacy** | `/api/pharmacy/questions` | `POST` | None (Public) | None | Submits public inquiry/question to pharmacist | Verified |
+| **Reminders** | `/api/reminders` | `GET` | Required | `PATIENT` (Owner) / `STAFF_ROLES` | Lists medicine reminders for the authenticated patient | Verified |
+| **Reminders** | `/api/reminders` | `POST` | Optional Auth | Public / Auto-linked | Creates medicine reminder (links to caller profile if authenticated, prevents body injection) | Verified |
+| **Reminders** | `/api/reminders/:id?` | `PUT` | Required | `PATIENT` (Owner) / `STAFF_ROLES` | Updates reminder schedule/notes with strict ownership verification (prevents IDOR) | Verified |
+| **Reminders** | `/api/reminders/:id?` | `DELETE` | Required | `PATIENT` (Owner) / `STAFF_ROLES` | Deletes reminder with strict ownership verification (prevents IDOR) | Verified |
+| **Lab** | `/api/lab/queue` | `GET` | Required | `LAB_ROLES` | Lists diagnostic test queue with patient names, doctor names, and verified report links | Verified |
+| **Lab** | `/api/lab/update-status` | `PATCH` | Required | `LAB_ROLES` | Updates test status (`COLLECTED`, `PROCESSING`, `COMPLETED`, `VERIFIED`), cascades appointment status | Verified |
+| **Lab** | `/api/lab/upload-report` | `POST` | Required | `LAB_ROLES` | Uploads lab report URL/summary, marks test completed, sends Email/SMS/WhatsApp to patient | Verified |
+| **Lab** | `/api/lab/verify-report` | `PATCH` | Required | `LAB_ROLES` | Marks report verified by pathologist and marks linked `lab_test` as `VERIFIED` | Verified |
+| **Lab** | `/api/lab/reports` | `GET` | Required | `LAB_ROLES` | Lists all historical lab reports with verification timestamps | Verified |
+| **Billing** | `/api/billing/invoices` | `GET` | Required | `BILLING_ROLES` | Lists all generated patient invoices with charge breakdowns | Verified |
+| **Billing** | `/api/billing/generate` | `POST` | Required | `BILLING_ROLES` | Manually generates itemized invoice with consultation, lab, medicine, and insurance deductions | Verified |
+| **Billing** | `/api/billing/pay` | `PATCH` | Required | `BILLING_ROLES` | Marks invoice `PAID`, records payment, completes appointment, sends patient notification | Verified |
+| **Billing** | `/api/billing/revenue` | `GET` | Required | `BILLING_ROLES` | Computes revenue analytics (confirmed payments, insurance total, pending receivables, breakdown) | Verified |
+| **Billing** | `/api/billing/payments` | `GET` | Required | `BILLING_ROLES` | Lists all payment transaction records with joined invoice code and patient name | Verified |
+| **Insurance** | `/api/insurance/claims` | `GET` | Required | `INSURANCE_ROLES` | Lists all insurance claims and active patient insurance policies | Verified |
+| **Insurance** | `/api/insurance/create` | `POST` | Required | `PATIENT` (Self) / `INSURANCE_ROLES` | Submits new insurance claim (enforces patient ownership check) | Verified |
+| **Insurance** | `/api/insurance/approve` | `PATCH` | Required | `INSURANCE_ROLES` | Approves claim, records settled amount, updates linked invoice deduction and recalculates total | Verified |
+| **Insurance** | `/api/insurance/reject` | `PATCH` | Required | `INSURANCE_ROLES` | Rejects insurance claim with decision reason and logs audit event | Verified |
+| **Emergency** | `/api/emergency/public-status`| `GET` | None (Public) | None | Returns total beds, available beds, and per-ward availability breakdown | Verified |
+| **Emergency** | `/api/emergency/sos` | `POST` | None (Public) | None | Submits immediate emergency SOS dispatch request | Verified |
+| **Emergency** | `/api/emergency/sos-requests`| `GET` | Required | `EMERGENCY_ROLES` | Lists incoming unresolved emergency SOS requests for triage staff | Verified |
+| **Emergency** | `/api/emergency/sos-update` | `PATCH` | Required | `EMERGENCY_ROLES` | Updates SOS dispatch status (`DISPATCHED`, `ARRIVED`, `RESOLVED`, `CANCELLED`) | Verified |
+| **Emergency** | `/api/emergency/cases` | `GET` | Required | `EMERGENCY_ROLES` | Lists active emergency cases (excluding discharged) and current hospital bed occupancy | Verified |
+| **Emergency** | `/api/emergency/create` | `POST` | Required | `EMERGENCY_ROLES` | Creates new emergency triage case, handles SOS-to-Case conversion, logs audit entry | Verified |
+| **Emergency** | `/api/emergency/update-status`| `PATCH`| Required | `EMERGENCY_ROLES` | Updates triage case status (`WAITING`, `TREATING`, `ADMITTED`, `DISCHARGED`) | Verified |
+| **Emergency** | `/api/emergency/assign-bed` | `PATCH` | Required | `EMERGENCY_ROLES` | Assigns hospital bed to patient, marks bed occupied, updates case to `ADMITTED` | Verified |
+| **Telemedicine**| `/api/telemedicine/sessions` | `GET` | Required | `STAFF_ROLES` / `PATIENT` (Self) | Lists video consultation sessions (patients see only own, auto-expires missed sessions) | Verified |
+| **Telemedicine**| `/api/telemedicine/create` | `POST` | Required | `TELEMEDICINE_ADMIN_ROLES` | Schedules a new telemedicine video consultation session | Verified |
+| **Telemedicine**| `/api/telemedicine/update-status`| `PATCH`| Required | `TELEMEDICINE_ADMIN_ROLES` | Updates video session status (`ONGOING`, `COMPLETED`, `CANCELLED`, `MISSED`) | Verified |
+| **Reception** | `/api/reception/queue` | `GET` | Required | `REC_ROLES` | Fetches today's appointments, registered patients, doctor roster, and walk-in queue | Verified |
+| **Reception** | `/api/reception/walk-in` | `POST` | Required | `REC_ROLES` | Enqueues a walk-in patient with sequential queue position calculation | Verified |
+| **Reception** | `/api/reception/check-in` | `POST` | Required | `REC_ROLES` | Fast-tracks patient check-in, creates appointment & initial consultation invoice | Verified |
+| **Reception** | `/api/reception/walk-in-status`| `PATCH`| Required | `REC_ROLES` | Updates walk-in patient status (`WAITING`, `IN_PROGRESS`, `DONE`, `CANCELLED`) | Verified |
+| **Reception** | `/api/reception/toggle-doctor`| `PATCH`| Required | `REC_ROLES` | Toggles real-time doctor availability status (`is_available: boolean`) | Verified |
+| **Notifications**| `/api/notifications` | `GET` | Required | Authenticated (Owner) | Returns user's in-app notification feed ordered by creation date | Verified |
+| **Notifications**| `/api/notifications/create` | `POST` | Required | `STAFF_ROLES` / `PATIENT` (Self) | Creates system or manual notification (patients restricted to notifying themselves) | Verified |
+| **Notifications**| `/api/notifications/read` | `PATCH` | Required | Authenticated (Owner) | Marks specific notification or all notifications as read (`is_read: true`) | Verified |
+| **Audit Logs** | `/api/audit-logs` | `GET` | Required | `ADMIN`, `SUPER_ADMIN`, `HOSPITAL_ADMIN` | Retrieves immutable audit trail logs (configurable limit up to 500 records) | Verified |
 
 ---
 
@@ -401,7 +406,7 @@ erDiagram
 
 | # | Issue Description | Root Category | Technical Impact | Resolution Status |
 |---|---|---|---|---|
-| 1 | Idempotency middleware stores cached responses in a local Node.js memory `Map` | Backend Architecture | In multi-instance / cluster deployments, idempotency cache is not shared across nodes | ⏳ Pending Redis integration |
-| 2 | Direct `psql` execution required for initial schema reset | Database Tooling | Requires PostgreSQL CLI installed on developer/deployer machines | ✅ Resolved via `reset-db.ps1` & `reset-db.sh` |
-| 3 | Storage bucket `lab-reports` must be created with matching RLS policies | Database / Storage | File upload fails if bucket `lab-reports` is missing on Supabase | ✅ Resolved in `003_security_hardening.sql` |
-| 4 | External third-party API credentials (Razorpay, Brevo, Twilio, Meta WhatsApp) | External Dependency | Live SMS, WhatsApp, email, and payments require valid API keys | ⚠️ Partially Completed (Mock mode enabled for trial) |
+| 1 | Idempotency middleware stores cached responses in a local Node.js memory `Map` | Backend Architecture | In multi-instance / cluster deployments, idempotency cache is not shared across nodes | Pending Redis integration |
+| 2 | Direct `psql` execution required for initial schema reset | Database Tooling | Requires PostgreSQL CLI installed on developer/deployer machines | Resolved via `reset-db.ps1` & `reset-db.sh` |
+| 3 | Storage bucket `lab-reports` must be created with matching RLS policies | Database / Storage | File upload fails if bucket `lab-reports` is missing on Supabase | Resolved in `003_security_hardening.sql` |
+| 4 | External third-party API credentials (Razorpay, Brevo, Twilio, Meta WhatsApp) | External Dependency | Live SMS, WhatsApp, email, and payments require valid API keys | Partially Completed (Mock mode enabled for trial) |

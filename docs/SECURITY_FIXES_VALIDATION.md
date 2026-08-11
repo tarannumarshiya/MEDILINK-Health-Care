@@ -1,11 +1,16 @@
 # MEDILINK Healthcare — Security Architecture & Hardening Validation Report
 
-**Document Version:** 1.0.0  
+**Documentation Status:** Final  
+Documentation reflects the current implementation, validation results, resolved observations, supporting evidence, and remaining project items as verified during the final documentation review.
+
+**Document Title:** Security Architecture, Threat Model, Hardening Controls, and Test Validation  
 **Project Name:** MEDILINK Digital Health Care  
+**Repository:** `medilink-healthcare`  
 **Security Standard:** Zero-Trust Healthcare Application Architecture  
 **Automated Security Suite:** `backend/test/security.test.ts` (18 Test Assertions)  
 **Database Security:** PostgreSQL Row Level Security (RLS) + Immutable Audit Logs  
-**Last Verified Date:** August 2026  
+**Document Version:** 1.0.0  
+**Last Verified Date:** August 11, 2026  
 
 ---
 
@@ -109,29 +114,29 @@ The backend includes a dedicated, automated in-memory security test suite with 1
 
 | # | Test Suite Category | Test Assertion | Tested Route | Security Vector | Test Result |
 |---|---|---|---|---|---|
-| 1 | Medicine Reminders | Unauthenticated GET returns 401 | `GET /api/reminders` | Authentication Enforcement | ✅ PASS |
-| 2 | Medicine Reminders | Patient sees only their own reminders | `GET /api/reminders` | Tenant Data Isolation | ✅ PASS |
-| 3 | Medicine Reminders | Patient cannot read another patient's reminders | `GET /api/reminders` | IDOR Protection | ✅ PASS |
-| 4 | Medicine Reminders | Public unauthenticated POST creates unlinked reminder | `POST /api/reminders` | Anonymous Flow Security | ✅ PASS |
-| 5 | Medicine Reminders | Cannot attach another user's profile ID via body | `POST /api/reminders` | Parameter Injection Defense | ✅ PASS |
-| 6 | Medicine Reminders | Unauthenticated PUT returns 401 | `PUT /api/reminders/:id` | Authentication Enforcement | ✅ PASS |
-| 7 | Medicine Reminders | Cross-patient PUT returns 403 Forbidden | `PUT /api/reminders/:id` | IDOR Mutation Defense | ✅ PASS |
-| 8 | Medicine Reminders | PUT on unowned anonymous reminder returns 403 | `PUT /api/reminders/:id` | Anonymous Record Protection | ✅ PASS |
-| 9 | Medicine Reminders | PUT on own reminder returns 200 OK | `PUT /api/reminders/:id` | Valid Ownership Flow | ✅ PASS |
-| 10 | Medicine Reminders | Unauthenticated DELETE returns 401 | `DELETE /api/reminders/:id` | Authentication Enforcement | ✅ PASS |
-| 11 | Medicine Reminders | Cross-patient DELETE returns 403 Forbidden | `DELETE /api/reminders/:id` | IDOR Deletion Defense | ✅ PASS |
-| 12 | Medicine Reminders | DELETE on own reminder returns 200 OK | `DELETE /api/reminders/:id` | Valid Ownership Flow | ✅ PASS |
-| 13 | Public Tracking | Returns only allowed minimal public fields | `POST /api/appointments/track` | Public Data Boundary | ✅ PASS |
-| 14 | Public Tracking | Never leaks prescription, lab URL, symptoms, or PII | `POST /api/appointments/track` | PHI Leakage Prevention | ✅ PASS |
-| 15 | Public Tracking | Tracking without reference returns 400 Bad Request | `POST /api/appointments/track` | Input Validation | ✅ PASS |
-| 16 | Public Tracking | Lookup by phone returns 404 (prevents enumeration) | `POST /api/appointments/track` | User Enumeration Defense | ✅ PASS |
-| 17 | Patient Consent | Unauthenticated consent action returns 401 | `POST /api/appointments/:id/consent` | Authentication Enforcement | ✅ PASS |
-| 18 | Patient Consent | Cross-patient consent action returns 403 Forbidden | `POST /api/appointments/:id/consent` | IDOR Consent Defense | ✅ PASS |
-| 19 | Patient Consent | Owner consent writes immutable audit entry | `POST /api/appointments/:id/consent` | Non-repudiation Audit | ✅ PASS |
-| 20 | Staff Consent | Staff consent without PIN returns 400 Bad Request | `POST /api/appointments/:id/consent` | Staff Identity Verification | ✅ PASS |
-| 21 | Staff Consent | Staff consent with incorrect PIN returns 403 Forbidden| `POST /api/appointments/:id/consent` | Staff PIN Enforcement | ✅ PASS |
-| 22 | Staff Consent | Staff consent with valid PIN returns 200 OK | `POST /api/appointments/:id/consent` | Valid Staff Proxy Consent | ✅ PASS |
-| 23 | Staff Consent | Inactive staff member consent rejected with 403 | `POST /api/appointments/:id/consent` | Deactivated Account Defense | ✅ PASS |
+| 1 | Medicine Reminders | Unauthenticated GET returns 401 | `GET /api/reminders` | Authentication Enforcement | PASS |
+| 2 | Medicine Reminders | Patient sees only their own reminders | `GET /api/reminders` | Tenant Data Isolation | PASS |
+| 3 | Medicine Reminders | Patient cannot read another patient's reminders | `GET /api/reminders` | IDOR Protection | PASS |
+| 4 | Medicine Reminders | Public unauthenticated POST creates unlinked reminder | `POST /api/reminders` | Anonymous Flow Security | PASS |
+| 5 | Medicine Reminders | Cannot attach another user's profile ID via body | `POST /api/reminders` | Parameter Injection Defense | PASS |
+| 6 | Medicine Reminders | Unauthenticated PUT returns 401 | `PUT /api/reminders/:id` | Authentication Enforcement | PASS |
+| 7 | Medicine Reminders | Cross-patient PUT returns 403 Forbidden | `PUT /api/reminders/:id` | IDOR Mutation Defense | PASS |
+| 8 | Medicine Reminders | PUT on unowned anonymous reminder returns 403 | `PUT /api/reminders/:id` | Anonymous Record Protection | PASS |
+| 9 | Medicine Reminders | PUT on own reminder returns 200 OK | `PUT /api/reminders/:id` | Valid Ownership Flow | PASS |
+| 10 | Medicine Reminders | Unauthenticated DELETE returns 401 | `DELETE /api/reminders/:id` | Authentication Enforcement | PASS |
+| 11 | Medicine Reminders | Cross-patient DELETE returns 403 Forbidden | `DELETE /api/reminders/:id` | IDOR Deletion Defense | PASS |
+| 12 | Medicine Reminders | DELETE on own reminder returns 200 OK | `DELETE /api/reminders/:id` | Valid Ownership Flow | PASS |
+| 13 | Public Tracking | Returns only allowed minimal public fields | `POST /api/appointments/track` | Public Data Boundary | PASS |
+| 14 | Public Tracking | Never leaks prescription, lab URL, symptoms, or PII | `POST /api/appointments/track` | PHI Leakage Prevention | PASS |
+| 15 | Public Tracking | Tracking without reference returns 400 Bad Request | `POST /api/appointments/track` | Input Validation | PASS |
+| 16 | Public Tracking | Lookup by phone returns 404 (prevents enumeration) | `POST /api/appointments/track` | User Enumeration Defense | PASS |
+| 17 | Patient Consent | Unauthenticated consent action returns 401 | `POST /api/appointments/:id/consent` | Authentication Enforcement | PASS |
+| 18 | Patient Consent | Cross-patient consent action returns 403 Forbidden | `POST /api/appointments/:id/consent` | IDOR Consent Defense | PASS |
+| 19 | Patient Consent | Owner consent writes immutable audit entry | `POST /api/appointments/:id/consent` | Non-repudiation Audit | PASS |
+| 20 | Staff Consent | Staff consent without PIN returns 400 Bad Request | `POST /api/appointments/:id/consent` | Staff Identity Verification | PASS |
+| 21 | Staff Consent | Staff consent with incorrect PIN returns 403 Forbidden| `POST /api/appointments/:id/consent` | Staff PIN Enforcement | PASS |
+| 22 | Staff Consent | Staff consent with valid PIN returns 200 OK | `POST /api/appointments/:id/consent` | Valid Staff Proxy Consent | PASS |
+| 23 | Staff Consent | Inactive staff member consent rejected with 403 | `POST /api/appointments/:id/consent` | Deactivated Account Defense | PASS |
 
 ---
 
@@ -139,12 +144,12 @@ The backend includes a dedicated, automated in-memory security test suite with 1
 
 | Security Area | Severity | Potential Risk / Vulnerability | Hardening Action / Implemented Fix | Verification Status |
 |---|---|---|---|---|
-| **PHI Leakage in Public Tracking** | **High** | Public lookup could expose patient names, symptoms, and medical notes | Restricted tracking to exact booking code; stripped all PII, symptoms, doctor names, and prescriptions from public response | ✅ Verified in Code & Tests |
-| **IDOR in Medicine Reminders** | **High** | Attackers could view, alter, or delete other patients' prescription schedules | Added ownership verification checks comparing JWT `user.id` against linked patient profile; blocked body injection of `profile_id` | ✅ Verified in Code & Tests |
-| **E-Pharmacy Price Tampering** | **High** | Malicious users could alter item prices in client-side cart requests | Server re-fetches authoritative unit prices from `medicines` table and computes grand total server-side | ✅ Verified in Code |
-| **Cross-Site Scripting (XSS)** | **Medium** | Stored script injection via patient name, symptoms, or inquiry messages | Global input validation rejects any input containing `<` or `>` characters across all endpoints (`/[<>]/g`) | ✅ Verified in Code |
-| **Insecure Payment Mode in Prod** | **Critical** | Silent fallback to mock payments in production environments | Fail-closed configuration check in `config.ts` crashes startup if `PAYMENT_MODE=mock` without `DEMO_MODE=true` or in production | ✅ Verified in Code |
-| **Payment Secret API Exposure** | **Critical** | Runtime modification or exposure of gateway secret keys via REST API | `POST /api/payment/settings` disabled (`400`); `GET /api/payment/settings` strictly omits secret keys | ✅ Verified in Code |
-| **Staff Impersonation in Consent** | **Medium** | Unauthorized staff members approving clinical consent without verification | Enforced staff PIN verification (last 4 characters of `employee_id`) and active profile validation | ✅ Verified in Code & Tests |
-| **DDoS & Brute Force Attacks** | **Medium** | Unrestricted request flooding on booking, contact, and registration routes | Implemented tiered rate limiting (`apiLimiter`, `authLimiter`, `bookingLimiter`) and 30s request timeouts | ✅ Verified in Code |
-| **Shared Workstation Hijacking** | **Medium** | Unattended hospital terminal remaining logged in | Implemented client-side activity listener with 30s warning countdown modal and automatic sign-out | ✅ Verified in Code |
+| **PHI Leakage in Public Tracking** | **High** | Public lookup could expose patient names, symptoms, and medical notes | Restricted tracking to exact booking code; stripped all PII, symptoms, doctor names, and prescriptions from public response | Verified in Code & Tests |
+| **IDOR in Medicine Reminders** | **High** | Attackers could view, alter, or delete other patients' prescription schedules | Added ownership verification checks comparing JWT `user.id` against linked patient profile; blocked body injection of `profile_id` | Verified in Code & Tests |
+| **E-Pharmacy Price Tampering** | **High** | Malicious users could alter item prices in client-side cart requests | Server re-fetches authoritative unit prices from `medicines` table and computes grand total server-side | Verified in Code |
+| **Cross-Site Scripting (XSS)** | **Medium** | Stored script injection via patient name, symptoms, or inquiry messages | Global input validation rejects any input containing `<` or `>` characters across all endpoints (`/[<>]/g`) | Verified in Code |
+| **Insecure Payment Mode in Prod** | **Critical** | Silent fallback to mock payments in production environments | Fail-closed configuration check in `config.ts` crashes startup if `PAYMENT_MODE=mock` without `DEMO_MODE=true` or in production | Verified in Code |
+| **Payment Secret API Exposure** | **Critical** | Runtime modification or exposure of gateway secret keys via REST API | `POST /api/payment/settings` disabled (`400`); `GET /api/payment/settings` strictly omits secret keys | Verified in Code |
+| **Staff Impersonation in Consent** | **Medium** | Unauthorized staff members approving clinical consent without verification | Enforced staff PIN verification (last 4 characters of `employee_id`) and active profile validation | Verified in Code & Tests |
+| **DDoS & Brute Force Attacks** | **Medium** | Unrestricted request flooding on booking, contact, and registration routes | Implemented tiered rate limiting (`apiLimiter`, `authLimiter`, `bookingLimiter`) and 30s request timeouts | Verified in Code |
+| **Shared Workstation Hijacking** | **Medium** | Unattended hospital terminal remaining logged in | Implemented client-side activity listener with 30s warning countdown modal and automatic sign-out | Verified in Code |
