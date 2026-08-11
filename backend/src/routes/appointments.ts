@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getServiceClient, dbErrorStatus } from "../lib/supabase";
+import { getServiceClient, resolveRequestClient, dbErrorStatus } from "../lib/supabase";
 import { requireAuth } from "../middleware/auth";
 import {
   generateAppointmentCode,
@@ -103,32 +103,60 @@ router.post("/create", async (req: Request, res: Response) => {
     const department_id = deptRow.id;
     const appointmentCode = generateAppointmentCode();
 
-    // Check existing patient
-    let orFilter = `phone.eq.${phoneStr}`;
+    // --- Resolve patient, preferring authenticated user's linked record ---
+    let patient: { id: string; patient_code: string; full_name: string; profile_id: string | null } | null = null;
 
-    if (email) {
-      orFilter += `,email.eq.${email}`;
+    // Try to get the authenticated user's patient record
+    const authClient = resolveRequestClient(req);
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+
+    if (!authError && user) {
+      // Look for existing patient linked to this user's profile
+      const { data: linkedPatient } = await getServiceClient()
+        .from("patients")
+        .select("id, patient_code, full_name, profile_id")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      if (linkedPatient) {
+        patient = linkedPatient;
+      }
     }
 
-    const { data: existingPatient } = await getServiceClient()
-      .from("patients")
-      .select("id, patient_code, full_name, profile_id")
-      .or(orFilter)
-      .maybeSingle();
-
-    let patient = existingPatient;
-
+    // Fallback: lookup by phone/email (guest or unlinked patient)
     if (!patient) {
+      let orFilter = `phone.eq.${phoneStr}`;
+      if (email) {
+        orFilter += `,email.eq.${email}`;
+      }
+
+      const { data: existingPatient } = await getServiceClient()
+        .from("patients")
+        .select("id, patient_code, full_name, profile_id")
+        .or(orFilter)
+        .maybeSingle();
+
+      patient = existingPatient;
+    }
+
+    // Create new patient if not found
+    if (!patient) {
+      const insertData: any = {
+        patient_code: generatePatientCode(),
+        full_name,
+        age: parsedAge,
+        phone: phoneStr,
+        email: email ?? null,
+      };
+      // If we have an authenticated user, link the patient to their profile
+      if (user) {
+        insertData.profile_id = user.id;
+      }
+
       const { data: createdPatient, error: patientError } =
         await getServiceClient()
           .from("patients")
-          .insert({
-            patient_code: generatePatientCode(),
-            full_name,
-            age: parsedAge,
-            phone: phoneStr,
-            email: email ?? null,
-          })
+          .insert(insertData)
           .select()
           .single();
 
@@ -140,6 +168,15 @@ router.post("/create", async (req: Request, res: Response) => {
       }
 
       patient = createdPatient;
+    }
+
+    // If we have an authenticated user and the patient isn't linked yet, link them
+    if (user && patient && !patient.profile_id) {
+      await getServiceClient()
+        .from("patients")
+        .update({ profile_id: user.id })
+        .eq("id", patient.id);
+      patient = { ...patient, profile_id: user.id };
     }
 
     if (!patient) {
@@ -182,9 +219,9 @@ router.post("/create", async (req: Request, res: Response) => {
           const dateStr = `${preferred_date}T${preferred_time || "00:00"}:00`;
           const d = new Date(dateStr);
           if (!isNaN(d.getTime())) scheduled_at = d.toISOString();
-        } catch (e) {}
+        } catch (e) { }
       }
-      
+
       await getServiceClient().from("telemedicine_sessions").insert({
         appointment_id: appointment.id,
         patient_id: patient.id,
