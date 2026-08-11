@@ -14,7 +14,10 @@ router.get("/claims", requireAuth, requireRole(INS_ROLES), async (req: Request, 
       .select("id,patient_id,policy_id,appointment_id,amount,status,decision_reason,settled_amount,created_at")
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     const { data: policies } = await getServiceClient()
       .from("insurance_policies")
@@ -35,7 +38,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     const profile = (req as any).profile;
     const { patient_id, policy_id, appointment_id, amount } = req.body;
     if (amount === undefined || amount === null || amount === "") {
-      return void res.status(422).json({ error: "amount required" });
+      res.status(422).json({ error: "amount required" });
+      return;
     }
 
     const isStaff = profile?.role && INS_ROLES.includes(profile.role);
@@ -55,7 +59,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
           .eq("profile_id", user.id)
           .maybeSingle();
         if (!ownedPatient) {
-          return void res.status(403).json({ error: "You can only create claims for yourself" });
+          res.status(403).json({ error: "You can only create claims for yourself" });
+          return;
         }
       }
       targetPatientId = patient_id;
@@ -67,7 +72,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         .eq("profile_id", user.id)
         .maybeSingle();
       if (!ownedPatient) {
-        return void res.status(400).json({ error: "No patient record found for this account" });
+        res.status(400).json({ error: "No patient record found for this account" });
+        return;
       }
       targetPatientId = ownedPatient.id;
     }
@@ -75,7 +81,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     // Validate amount is positive
     const claimAmount = Number(amount);
     if (isNaN(claimAmount) || claimAmount <= 0) {
-      return void res.status(422).json({ error: "Amount must be a positive number" });
+      res.status(422).json({ error: "Amount must be a positive number" });
+      return;
     }
 
     const { data, error } = await getServiceClient().from("insurance_claims").insert({
@@ -86,7 +93,10 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       status: "PENDING",
     }).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, claim: data });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -97,7 +107,10 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
 router.patch("/approve", requireAuth, requireRole(INS_ROLES), async (req: Request, res: Response) => {
   try {
     const { claim_id, settled_amount, decision_reason } = req.body;
-    if (!claim_id) return void res.status(400).json({ error: "claim_id required" });
+    if (!claim_id) {
+      res.status(400).json({ error: "claim_id required" });
+      return;
+    }
 
     const { data: existing } = await getServiceClient()
       .from("insurance_claims").select("id").eq("id", claim_id).maybeSingle();
@@ -108,7 +121,10 @@ router.patch("/approve", requireAuth, requireRole(INS_ROLES), async (req: Reques
       .update({ status: "APPROVED", settled_amount: Number(settled_amount ?? 0), decision_reason: decision_reason ?? null })
       .eq("id", claim_id).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     // Update invoice insurance_deduction if linked appointment exists
     if (claim?.appointment_id) {
@@ -139,7 +155,10 @@ router.patch("/approve", requireAuth, requireRole(INS_ROLES), async (req: Reques
 router.patch("/reject", requireAuth, requireRole(INS_ROLES), async (req: Request, res: Response) => {
   try {
     const { claim_id, decision_reason } = req.body;
-    if (!claim_id) return void res.status(400).json({ error: "claim_id required" });
+    if (!claim_id) {
+      res.status(400).json({ error: "claim_id required" });
+      return;
+    }
 
     const { data: existing } = await getServiceClient()
       .from("insurance_claims").select("id").eq("id", claim_id).maybeSingle();
@@ -150,7 +169,10 @@ router.patch("/reject", requireAuth, requireRole(INS_ROLES), async (req: Request
       .update({ status: "REJECTED", decision_reason: decision_reason ?? null })
       .eq("id", claim_id).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     await getServiceClient().from("audit_logs").insert({
       action: "INSURANCE_REJECTED",

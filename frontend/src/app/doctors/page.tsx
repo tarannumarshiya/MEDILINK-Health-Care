@@ -186,6 +186,9 @@ function HistoryModal({ onClose }: { onClose: () => void }) {
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      tabIndex={-1}
       style={{
         background: "rgba(0,0,0,0.55)",
         backdropFilter: "blur(4px)",
@@ -193,6 +196,9 @@ function HistoryModal({ onClose }: { onClose: () => void }) {
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
       }}
     >
       <div className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">

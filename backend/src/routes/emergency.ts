@@ -35,19 +35,22 @@ router.post("/sos", async (req: Request, res: Response) => {
   try {
     const { patient_name, phone, location, emergency_type, description, age } = req.body;
     if (!patient_name || !phone) {
-      return void res.status(400).json({ error: "patient_name and phone are required" });
+      res.status(400).json({ error: "patient_name and phone are required" });
+      return;
     }
 
     const phoneDigits = String(phone).replace(/\D/g, "");
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-      return void res.status(400).json({ error: "Invalid phone number format" });
+      res.status(400).json({ error: "Invalid phone number format" });
+      return;
     }
 
     let parsedAge = null;
     if (age !== undefined && age !== null && age !== "") {
       parsedAge = Number(age);
-      if (isNaN(parsedAge) || !isFinite(parsedAge) || parsedAge < 0) {
-        return void res.status(400).json({ error: "Age must be a non-negative number" });
+      if (Number.isNaN(parsedAge) || !Number.isFinite(parsedAge) || parsedAge < 0) {
+        res.status(400).json({ error: "Age must be a non-negative number" });
+        return;
       }
     }
 
@@ -68,9 +71,11 @@ router.post("/sos", async (req: Request, res: Response) => {
     if (error) {
       // If table doesn't exist, fall back gracefully
       if (error.code === "42P01") {
-        return void res.status(503).json({ error: "SOS service temporarily unavailable. Please call emergency hotline." });
+        res.status(503).json({ error: "SOS service temporarily unavailable. Please call emergency hotline." });
+        return;
       }
-      return void res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message });
+      return;
     }
 
     res.json({ success: true, request: data, message: "SOS received. Emergency team will call you shortly." });
@@ -89,8 +94,12 @@ router.get("/sos-requests", requireAuth, requireRole(EM_ROLES), async (_req: Req
       .order("created_at", { ascending: false });
 
     if (error) {
-      if (error.code === "42P01") return void res.json({ success: true, requests: [] });
-      return void res.status(500).json({ error: error.message });
+      if (error.code === "42P01") {
+        res.json({ success: true, requests: [] });
+        return;
+      }
+      res.status(500).json({ error: error.message });
+      return;
     }
 
     res.json({ success: true, requests: data ?? [] });
@@ -103,7 +112,10 @@ router.get("/sos-requests", requireAuth, requireRole(EM_ROLES), async (_req: Req
 router.patch("/sos-update", requireAuth, requireRole(EM_ROLES), async (req: Request, res: Response) => {
   try {
     const { request_id, status, admin_notes } = req.body;
-    if (!request_id || !status) return void res.status(400).json({ error: "request_id and status required" });
+    if (!request_id || !status) {
+      res.status(400).json({ error: "request_id and status required" });
+      return;
+    }
 
     const { data, error } = await getServiceClient()
       .from("emergency_sos_requests")
@@ -112,7 +124,10 @@ router.patch("/sos-update", requireAuth, requireRole(EM_ROLES), async (req: Requ
       .select()
       .single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, request: data });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -128,7 +143,10 @@ router.get("/cases", requireAuth, requireRole(EM_ROLES), async (_req: Request, r
       .not("status", "eq", "DISCHARGED")
       .order("arrived_at", { ascending: true });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     const { data: beds } = await getServiceClient()
       .from("beds")
@@ -145,7 +163,10 @@ router.get("/cases", requireAuth, requireRole(EM_ROLES), async (_req: Request, r
 router.post("/create", requireAuth, requireRole(EM_ROLES), async (req: Request, res: Response) => {
   try {
     const { patient_name, age, gender, department, description, severity, phone, sos_request_id } = req.body;
-    if (!patient_name) return void res.status(400).json({ error: "patient_name required" });
+    if (!patient_name) {
+      res.status(400).json({ error: "patient_name required" });
+      return;
+    }
 
     const { data, error } = await getServiceClient().from("emergency_cases").insert({
       patient_name,
@@ -157,7 +178,10 @@ router.post("/create", requireAuth, requireRole(EM_ROLES), async (req: Request, 
       status: "WAITING",
     }).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     // If created from an SOS request, mark it as CONVERTED
     if (sos_request_id) {
@@ -184,13 +208,24 @@ router.post("/create", requireAuth, requireRole(EM_ROLES), async (req: Request, 
 // PATCH /api/emergency/update-status
 router.patch("/update-status", requireAuth, requireRole(EM_ROLES), async (req: Request, res: Response) => {
   try {
-    const { case_id, status } = req.body;
-    if (!case_id || !status) return void res.status(400).json({ error: "case_id and status required" });
+    const idToUse = req.body.case_id || req.body.id;
+    const { status } = req.body;
+    if (!idToUse || !status) {
+      res.status(400).json({ error: "case_id and status required" });
+      return;
+    }
 
     const { data, error } = await getServiceClient()
-      .from("emergency_cases").update({ status }).eq("id", case_id).select().single();
+      .from("emergency_cases").update({ status }).eq("id", idToUse).select().maybeSingle();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    if (!data) {
+      res.status(404).json({ error: "Emergency case not found" });
+      return;
+    }
     res.json({ success: true, case: data });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -200,20 +235,31 @@ router.patch("/update-status", requireAuth, requireRole(EM_ROLES), async (req: R
 // PATCH /api/emergency/assign-bed
 router.patch("/assign-bed", requireAuth, requireRole(EM_ROLES), async (req: Request, res: Response) => {
   try {
-    const { case_id, bed_id } = req.body;
-    if (!case_id || !bed_id) return void res.status(400).json({ error: "case_id and bed_id required" });
+    const caseIdToUse = req.body.case_id || req.body.id;
+    const bedIdToUse = req.body.bed_id || req.body.bedId;
+    if (!caseIdToUse || !bedIdToUse) {
+      res.status(400).json({ error: "case_id and bed_id required" });
+      return;
+    }
 
-    const { data: emCase } = await getServiceClient().from("emergency_cases").select("patient_name").eq("id", case_id).single();
+    const { data: emCase } = await getServiceClient().from("emergency_cases").select("patient_name").eq("id", caseIdToUse).maybeSingle();
 
     await getServiceClient().from("beds").update({
       is_occupied: true,
       patient_name: emCase?.patient_name ?? null,
-    }).eq("id", bed_id);
+    }).eq("id", bedIdToUse);
 
     const { data, error } = await getServiceClient()
-      .from("emergency_cases").update({ bed_id, status: "ADMITTED" }).eq("id", case_id).select().single();
+      .from("emergency_cases").update({ bed_id: bedIdToUse, status: "ADMITTED" }).eq("id", caseIdToUse).select().maybeSingle();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    if (!data) {
+      res.status(404).json({ error: "Emergency case not found" });
+      return;
+    }
     res.json({ success: true, case: data });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

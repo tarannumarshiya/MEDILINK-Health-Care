@@ -7,6 +7,7 @@ import { Loader2, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { validateRegisterForm, validateBDPhone } from "@/lib/validate";
 import BrandLogo from "@/components/BrandLogo";
+import { generatePatientCode } from "@/lib/ids";
 
 function ECGLine({ className = "" }: { className?: string }) {
   return (
@@ -74,7 +75,7 @@ function PatientRegisterInner() {
     if (existing) {
       await supabase.from("patients").update({ profile_id:userId, full_name, age:Number(age), email, ...extra }).eq("id", existing.id);
     } else {
-      await supabase.from("patients").insert({ profile_id:userId, patient_code:"PAT-"+new Date().getFullYear()+"-"+Math.floor(100000+Math.random()*900000), full_name, age:Number(age), phone, email, ...extra });
+      await supabase.from("patients").insert({ profile_id:userId, patient_code:generatePatientCode(), full_name, age:Number(age), phone, email, ...extra });
     }
     setDone(true);
   };

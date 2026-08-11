@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { usePharmacyCart } from "@/context/PharmacyCartContext";
 import { apiFetch } from "@/lib/apiFetch";
+import { secureRandomInt } from "@/lib/ids";
 
 export default function CartDrawer() {
   const {
@@ -104,6 +105,7 @@ export default function CartDrawer() {
   return (
     <div className="fixed inset-0 z-[9999] flex">
       <button
+        type="button"
         aria-label="Close"
         onClick={() => setCartOpen(false)}
         className="flex-1 bg-black/20"
@@ -128,6 +130,7 @@ export default function CartDrawer() {
           </div>
 
           <button
+            type="button"
             onClick={() => setCartOpen(false)}
             className="rounded-lg p-2 hover:bg-gray-100"
           >
@@ -163,6 +166,7 @@ export default function CartDrawer() {
 
             <div className="mt-8 grid w-full gap-3">
               <button
+                type="button"
                 onClick={saveMonthlyReminders}
                 disabled={savingReminder}
                 className="flex w-full items-center justify-center gap-2 rounded-xl py-4 font-bold text-white disabled:opacity-60"
@@ -177,6 +181,7 @@ export default function CartDrawer() {
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   clearCart();
                   setOrderPlaced(false);
@@ -237,6 +242,7 @@ export default function CartDrawer() {
 
                         <div className="flex flex-col items-end gap-2">
                           <button
+                            type="button"
                             onClick={() => removeFromCart(item.id)}
                             className="text-red-500"
                           >
@@ -245,6 +251,7 @@ export default function CartDrawer() {
 
                           <div className="flex items-center gap-2 rounded-xl border px-2 py-1">
                             <button
+                              type="button"
                               onClick={() => updateQty(item.id, item.qty - 1)}
                             >
                               <Minus size={14} />
@@ -255,6 +262,7 @@ export default function CartDrawer() {
                             </span>
 
                             <button
+                              type="button"
                               onClick={() => updateQty(item.id, item.qty + 1)}
                             >
                               <Plus size={14} />
@@ -319,6 +327,7 @@ export default function CartDrawer() {
 
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
+                        type="button"
                         onClick={() => setDelivery("pickup")}
                         className={`rounded-xl border py-3 ${
                           delivery === "pickup"
@@ -330,6 +339,7 @@ export default function CartDrawer() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => setDelivery("delivery")}
                         className={`rounded-xl border py-3 ${
                           delivery === "delivery"
@@ -363,6 +373,7 @@ export default function CartDrawer() {
                 </div>
 
                 <button
+                  type="button"
                   disabled={isPlacing}
                   onClick={async () => {
                     if (!patientName.trim() || !phone.trim()) {
@@ -401,7 +412,7 @@ export default function CartDrawer() {
                       });
                       const data = await res.json();
                       if (data.success || true) {
-                        setOrderId(data.order_id || "ORD-" + Math.floor(Math.random() * 1000000));
+                        setOrderId(data.order_id || `ORD-${secureRandomInt(0, 1000000).toString().padStart(6, "0")}`);
                         setOrderPlaced(true);
                       } else {
                         alert(data.error || "Failed to place order.");

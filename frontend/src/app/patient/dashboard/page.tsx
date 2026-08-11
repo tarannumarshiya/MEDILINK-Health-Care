@@ -16,7 +16,7 @@ import TimeSelect from "@/components/public/TimeSelect";
 import {
   BarChart3, User, FileText, Calendar, Pill,
   Beaker, Shield, CreditCard, Video, Bell, Loader2,
-  TrendingUp, Heart, Clock, CheckCircle, Activity, X
+  TrendingUp, Clock, Activity, X
 } from "lucide-react";
 
 type PatientRow = { full_name: string; email: string; phone: string; age: number; patient_code: string; id: string };
@@ -76,11 +76,12 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 const VALID_TABS: Tab[] = ["overview", "profile", "appointments", "prescriptions", "lab", "insurance", "billing", "video", "notifications", "history"];
+const VALID_TABS_SET = new Set<Tab>(VALID_TABS);
 
 function getTabFromURL(): Tab {
   if (typeof window === "undefined") return "overview";
   const p = new URLSearchParams(window.location.search).get("tab") as Tab | null;
-  return p && VALID_TABS.includes(p) ? p : "overview";
+  return p && VALID_TABS_SET.has(p) ? p : "overview";
 }
 
 export default function PatientDashboardPage() {
@@ -522,7 +523,16 @@ export default function PatientDashboardPage() {
               action={unread > 0 ? <button onClick={markAllRead} className="text-xs font-black text-[var(--primary)] hover:underline">Mark all read</button> : undefined}>
               <div className="space-y-2.5">
                 {notifications.slice(0, 4).map(n => (
-                  <div key={n.id} onClick={() => markNotificationRead(n.id)}
+                  <div key={n.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => markNotificationRead(n.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        markNotificationRead(n.id);
+                      }
+                    }}
                     className={`cursor-pointer rounded-xl border p-3.5 transition hover:-translate-y-0.5 ${n.is_read ? "border-[var(--line)] bg-[var(--canvas)]" : "border-[var(--primary)]/20 bg-[var(--primary-soft)]"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -959,7 +969,16 @@ export default function PatientDashboardPage() {
             ) : undefined}>
             <div className="space-y-2.5">
               {notifications.map(n => (
-                <div key={n.id} onClick={() => markNotificationRead(n.id)}
+                <div key={n.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => markNotificationRead(n.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      markNotificationRead(n.id);
+                    }
+                  }}
                   className={`cursor-pointer rounded-2xl border p-4 transition hover:-translate-y-0.5 ${n.is_read ? "border-[var(--line)] bg-[var(--canvas)]" : "border-[var(--primary)]/20 bg-[var(--primary-soft)]"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>

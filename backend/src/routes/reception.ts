@@ -52,7 +52,10 @@ router.get("/queue", requireAuth, requireRole(REC_ROLES), async (req: Request, r
 router.post("/walk-in", requireAuth, requireRole(REC_ROLES), async (req: Request, res: Response) => {
   try {
     const { patient_name, phone, department, reason } = req.body;
-    if (!patient_name || !department) return void res.status(400).json({ error: "patient_name and department required" });
+    if (!patient_name || !department) {
+      res.status(400).json({ error: "patient_name and department required" });
+      return;
+    }
 
     // Get next position
     const { count } = await serviceClient.from("walk_in_queue")
@@ -69,7 +72,10 @@ router.post("/walk-in", requireAuth, requireRole(REC_ROLES), async (req: Request
       position,
     }).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, walkIn: data });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -80,7 +86,10 @@ router.post("/walk-in", requireAuth, requireRole(REC_ROLES), async (req: Request
 router.post("/check-in", requireAuth, requireRole(REC_ROLES), async (req: Request, res: Response) => {
   try {
     const { full_name, age, phone, email, department, symptoms } = req.body;
-    if (!full_name || !department) return void res.status(400).json({ error: "full_name and department required" });
+    if (!full_name || !department) {
+      res.status(400).json({ error: "full_name and department required" });
+      return;
+    }
 
     // Dedup patient
     let orFilter = `phone.eq.${phone}`;
@@ -96,7 +105,10 @@ router.post("/check-in", requireAuth, requireRole(REC_ROLES), async (req: Reques
         full_name, age: age ? Number(age) : null, phone,
         email: email ?? null,
       }).select().single();
-      if (pErr || !created) return void res.status(500).json({ error: pErr?.message ?? "Patient creation failed" });
+      if (pErr || !created) {
+        res.status(500).json({ error: pErr?.message ?? "Patient creation failed" });
+        return;
+      }
       patient = created;
     }
 
@@ -126,7 +138,10 @@ router.post("/check-in", requireAuth, requireRole(REC_ROLES), async (req: Reques
       status: "APPROVED",
     }).select().single();
 
-    if (aErr || !appt) return void res.status(500).json({ error: aErr?.message ?? "Appointment creation failed" });
+    if (aErr || !appt) {
+      res.status(500).json({ error: aErr?.message ?? "Appointment creation failed" });
+      return;
+    }
 
     // --- AUTO-GENERATE INVOICE ---
     const fee = 500; // Default fallback fee
@@ -162,12 +177,18 @@ router.post("/check-in", requireAuth, requireRole(REC_ROLES), async (req: Reques
 router.patch("/walk-in-status", requireAuth, requireRole(REC_ROLES), async (req: Request, res: Response) => {
   try {
     const { id, status } = req.body;
-    if (!id || !status) return void res.status(400).json({ error: "id and status required" });
+    if (!id || !status) {
+      res.status(400).json({ error: "id and status required" });
+      return;
+    }
 
     const { data, error } = await serviceClient.from("walk_in_queue")
       .update({ status }).eq("id", id).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, walkIn: data });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -178,12 +199,18 @@ router.patch("/walk-in-status", requireAuth, requireRole(REC_ROLES), async (req:
 router.patch("/toggle-doctor", requireAuth, requireRole(REC_ROLES), async (req: Request, res: Response) => {
   try {
     const { doctor_id, is_available } = req.body;
-    if (!doctor_id) return void res.status(400).json({ error: "doctor_id required" });
+    if (!doctor_id) {
+      res.status(400).json({ error: "doctor_id required" });
+      return;
+    }
 
     const { data, error } = await serviceClient.from("doctors")
       .update({ is_available: Boolean(is_available) }).eq("id", doctor_id).select().single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, doctor: data });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

@@ -35,7 +35,10 @@ router.get("/medicines", async (req: Request, res: Response) => {
     );
   }
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.json({ success: true, medicines: data ?? [], isAdmin });
 });
 
@@ -55,13 +58,15 @@ router.post(
       requires_prescription,
     } = req.body;
 
-    if (!name || !price)
-      return void res
-        .status(400)
-        .json({ error: "Name and price are required" });
+    if (!name || !price) {
+      res.status(400).json({ error: "Name and price are required" });
+      return;
+    }
 
-    if (quantity !== undefined && Number(quantity) < 0)
-      return void res.status(400).json({ error: "Stock quantity cannot be negative" });
+    if (quantity !== undefined && Number(quantity) < 0) {
+      res.status(400).json({ error: "Stock quantity cannot be negative" });
+      return;
+    }
 
     const cleanName = String(name).trim();
     const { data: existing } = await supabase
@@ -108,7 +113,10 @@ router.post(
       error = insertRes.error;
     }
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, medicine: data });
   }
 );
@@ -131,7 +139,10 @@ router.get(
       )
       .order("name", { ascending: true });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, medicines: data ?? [] });
   }
 );
@@ -144,7 +155,10 @@ router.patch(
     const supabase = resolveRequestClient(req);
     const { id, quantity, reorder_level, price, is_available } = req.body;
 
-    if (!id) return void res.status(400).json({ error: "id required" });
+    if (!id) {
+      res.status(400).json({ error: "id required" });
+      return;
+    }
 
     const updates: Record<string, unknown> = {};
     if (quantity !== undefined) updates.quantity = Number(quantity);
@@ -158,7 +172,10 @@ router.patch(
       .from("medicines")
       .update(updates)
       .eq("id", id);
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true });
   }
 );
@@ -182,32 +199,29 @@ router.post("/orders", async (req: Request, res: Response) => {
     } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return void res.status(400).json({ error: "Items are required" });
+      res.status(400).json({ error: "Items are required" });
+      return;
     }
 
     if (!patient_name || !patient_phone) {
-      return void res
-        .status(400)
-        .json({ error: "Patient name and phone number are required" });
+      res.status(400).json({ error: "Patient name and phone number are required" });
+      return;
     }
 
     if (/[<>]/g.test(patient_name)) {
-      return void res
-        .status(400)
-        .json({ error: "Patient name cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Patient name cannot contain HTML or script characters" });
+      return;
     }
 
     const phoneDigits = patient_phone.replace(/\D/g, "");
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-      return void res
-        .status(400)
-        .json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+      res.status(400).json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
+      return;
     }
 
     if (notes && /[<>]/g.test(notes)) {
-      return void res
-        .status(400)
-        .json({ error: "Notes cannot contain HTML or script characters" });
+      res.status(400).json({ error: "Notes cannot contain HTML or script characters" });
+      return;
     }
 
     // Server-side price calculation: fetch authoritative prices from the
@@ -220,7 +234,8 @@ router.post("/orders", async (req: Request, res: Response) => {
       const quantity = Number(item.quantity) || 0;
 
       if (!medicineName || quantity <= 0) {
-        return void res.status(400).json({ error: `Invalid item: ${medicineName || "unnamed"}` });
+        res.status(400).json({ error: `Invalid item: ${medicineName || "unnamed"}` });
+        return;
       }
 
       // Look up the authoritative price from the medicines table
@@ -231,11 +246,13 @@ const { data: medicine } = await getServiceClient()
         .maybeSingle();
 
       if (!medicine || !medicine.is_available) {
-        return void res.status(400).json({ error: `Medicine "${medicineName}" not found or unavailable` });
+        res.status(400).json({ error: `Medicine "${medicineName}" not found or unavailable` });
+        return;
       }
 
       if (medicine.quantity < quantity) {
-        return void res.status(400).json({ error: `Insufficient stock for "${medicineName}". Available: ${medicine.quantity}` });
+        res.status(400).json({ error: `Insufficient stock for "${medicineName}". Available: ${medicine.quantity}` });
+        return;
       }
 
       const unitPrice = Number(medicine.price);
@@ -263,7 +280,8 @@ const { data: medicine } = await getServiceClient()
       .single();
 
     if (orderError) {
-      return void res.status(500).json({ error: orderError.message });
+      res.status(500).json({ error: orderError.message });
+      return;
     }
 
     return res.status(201).json({
@@ -276,7 +294,7 @@ const { data: medicine } = await getServiceClient()
     const message =
       error instanceof Error ? error.message : "Failed to place order";
 
-    return void res.status(500).json({ error: message });
+    res.status(500).json({ error: message });
   }
 });
 
@@ -284,7 +302,8 @@ router.post("/orders/track", async (req: Request, res: Response) => {
   try {
     const rawSearch = req.body.search || req.body.order_id || req.body.phone || req.body.patient_phone || req.query.search || req.query.order_id || req.query.phone || req.query.patient_phone;
     if (!rawSearch || typeof rawSearch !== "string" || !rawSearch.trim()) {
-      return void res.status(400).json({ error: "Search query (Order ID or Phone) is required" });
+      res.status(400).json({ error: "Search query (Order ID or Phone) is required" });
+      return;
     }
 
     const cleanSearch = rawSearch.trim();
@@ -305,11 +324,13 @@ router.post("/orders/track", async (req: Request, res: Response) => {
     const { data: orders, error } = await query;
 
     if (error) {
-      return void res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message });
+      return;
     }
 
     if (!orders || orders.length === 0) {
-      return void res.status(404).json({ error: "No orders found for this search" });
+      res.status(404).json({ error: "No orders found for this search" });
+      return;
     }
 
     res.json({ success: true, orders });
@@ -330,7 +351,10 @@ router.get(
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, orders: data || [] });
   }
 );
@@ -344,11 +368,13 @@ router.patch(
     const { id, status } = req.body;
 
     if (!id || !status) {
-      return void res.status(400).json({ error: "id and status required" });
+      res.status(400).json({ error: "id and status required" });
+      return;
     }
 
     if (!VALID_ORDER_STATUSES.includes(status.toUpperCase())) {
-      return void res.status(422).json({ error: `Invalid status. Allowed: ${VALID_ORDER_STATUSES.join(", ")}` });
+      res.status(422).json({ error: `Invalid status. Allowed: ${VALID_ORDER_STATUSES.join(", ")}` });
+      return;
     }
 
     const { error } = await supabase
@@ -356,7 +382,10 @@ router.patch(
       .update({ status: status.toUpperCase() })
       .eq("id", id);
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true });
   }
 );
@@ -382,7 +411,10 @@ router.get(
       .in("status", ["ACTIVE", "PENDING", "DISPENSED", "FULFILLED"])
       .order("created_at", { ascending: false });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     const shaped = (prescriptions ?? []).map((rx: any) => ({
       id: rx.id,
@@ -409,8 +441,10 @@ router.patch(
     const supabase = resolveRequestClient(req);
     const { prescription_id } = req.body;
 
-    if (!prescription_id)
-      return void res.status(400).json({ error: "prescription_id required" });
+    if (!prescription_id) {
+      res.status(400).json({ error: "prescription_id required" });
+      return;
+    }
 
     const { data: items } = await supabase
       .from("prescription_items")
@@ -431,7 +465,10 @@ router.patch(
 
     const { error } = await supabase
       .from("prescriptions").update({ status: "FULFILLED" }).eq("id", prescription_id);
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
 
     // Update appointment status → PHARMACY_FULFILLED
     const { data: rx } = await supabase
@@ -507,7 +544,10 @@ router.get(
       .select("id, name, contact, email")
       .order("name", { ascending: true });
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, vendors: data ?? [] });
   }
 );
@@ -520,10 +560,14 @@ router.post(
     const supabase = resolveRequestClient(req);
     const { name, contact, email } = req.body;
 
-    if (!name)
-      return void res.status(400).json({ error: "Vendor name required" });
-    if (email && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(String(email).trim()))
-      return void res.status(400).json({ error: "Enter a valid lowercase vendor email" });
+    if (!name) {
+      res.status(400).json({ error: "Vendor name required" });
+      return;
+    }
+    if (email && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(String(email).trim())) {
+      res.status(400).json({ error: "Enter a valid lowercase vendor email" });
+      return;
+    }
 
     const { data, error } = await supabase
       .from("vendors")
@@ -531,7 +575,10 @@ router.post(
       .select()
       .single();
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, vendor: data });
   }
 );
@@ -543,10 +590,10 @@ router.post(
 router.post("/questions", async (req: Request, res: Response) => {
   const { name, phone, question } = req.body;
 
-  if (!name || !question)
-    return void res
-      .status(400)
-      .json({ error: "Name and question are required" });
+  if (!name || !question) {
+    res.status(400).json({ error: "Name and question are required" });
+    return;
+  }
 
   const { data, error } = await getServiceClient()
     .from("pharmacy_questions")
@@ -554,7 +601,10 @@ router.post("/questions", async (req: Request, res: Response) => {
     .select()
     .single();
 
-  if (error) return void res.status(500).json({ error: error.message });
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
   res.json({ success: true, question: data });
 });
 

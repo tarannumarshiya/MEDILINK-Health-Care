@@ -28,10 +28,10 @@ export default function BillingLoginPage() {
     const { data, error: err } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password });
     if (err || !data.user) { setError("Invalid credentials."); setLoading(false); return; }
     const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", data.user.id).single();
-    const allowed = ["BILLING", "HOSPITAL_ADMIN", "SUPER_ADMIN"];
-    if (!profile || !allowed.includes(profile.role) || !profile.is_active) {
+    const allowedSet = new Set(["BILLING", "HOSPITAL_ADMIN", "SUPER_ADMIN"]);
+    if (!profile || !allowedSet.has(profile.role) || !profile.is_active) {
       await supabase.auth.signOut();
-      setError(!allowed.includes(profile?.role ?? "") ? "Access denied. Billing staff only." : "Account inactive. Contact Super Admin.");
+      setError(!allowedSet.has(profile?.role ?? "") ? "Access denied. Billing staff only." : "Account inactive. Contact Super Admin.");
       setLoading(false);
       return;
     }

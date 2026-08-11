@@ -286,7 +286,18 @@ export function DashboardShell({
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)}/>
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"
+            role="button"
+            tabIndex={0}
+            onClick={() => setMobileOpen(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setMobileOpen(false);
+              }
+            }}
+          />
           <aside className="absolute left-0 top-0 h-full w-[240px] bg-white border-r border-[var(--line)] flex flex-col overflow-hidden shadow-[var(--shadow-lg)]">
             {sidebar}
           </aside>

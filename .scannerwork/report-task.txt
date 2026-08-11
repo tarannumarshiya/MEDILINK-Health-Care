@@ -1,0 +1,6 @@
+projectKey=medlink
+serverUrl=http://localhost:9000
+serverVersion=26.8.0.126808
+dashboardUrl=http://localhost:9000/dashboard?id=medlink
+ceTaskId=c07fcccf-dda4-4121-bd83-b8db58c34a87
+ceTaskUrl=http://localhost:9000/api/ce/task?id=c07fcccf-dda4-4121-bd83-b8db58c34a87

@@ -61,7 +61,7 @@ export function PaymentSettingsPanel() {
       {msg && (
         <div className="mb-6 flex items-center justify-between rounded-2xl border border-teal-200 bg-teal-50 px-5 py-3 text-sm font-bold text-teal-800">
           {msg}
-          <button onClick={() => setMsg("")} className="ml-4 text-teal-500 hover:text-teal-700">✕</button>
+          <button type="button" onClick={() => setMsg("")} className="ml-4 text-teal-500 hover:text-teal-700">✕</button>
         </div>
       )}
 

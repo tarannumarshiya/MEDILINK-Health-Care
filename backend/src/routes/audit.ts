@@ -4,7 +4,8 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { ADMIN_ROLES } from "../lib/roles";
 
 const router = Router();
-const AUDIT_ROLES = ADMIN_ROLES.filter(role => ["ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"].includes(role));
+const AUDIT_SET = new Set(["ADMIN", "SUPER_ADMIN", "HOSPITAL_ADMIN"]);
+const AUDIT_ROLES = ADMIN_ROLES.filter(role => AUDIT_SET.has(role));
 
 // GET /api/audit-logs
 router.get("/", requireAuth, requireRole(AUDIT_ROLES), async (req: Request, res: Response) => {
@@ -16,7 +17,10 @@ router.get("/", requireAuth, requireRole(AUDIT_ROLES), async (req: Request, res:
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error) return void res.status(500).json({ error: error.message });
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     res.json({ success: true, logs: data ?? [] });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

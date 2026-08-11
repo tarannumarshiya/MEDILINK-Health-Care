@@ -88,7 +88,18 @@ export default function HospitalBill(props: HospitalBillProps) {
       style={{ backgroundColor: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}
     >
       {/* Click backdrop to close */}
-      <div className="fixed inset-0" onClick={props.onClose} />
+      <div
+        className="fixed inset-0 cursor-pointer"
+        role="button"
+        tabIndex={0}
+        onClick={props.onClose}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
+            e.preventDefault();
+            props.onClose();
+          }
+        }}
+      />
 
       {/* Content wrapper — sits above backdrop, centered, with padding so nothing clips */}
       <div className="relative z-10 mx-auto min-h-full w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
@@ -96,12 +107,14 @@ export default function HospitalBill(props: HospitalBillProps) {
         {/* ── Sticky action bar ── */}
         <div className="sticky top-4 z-20 mb-4 flex items-center justify-between gap-3">
           <button
+            type="button"
             onClick={handlePrint}
             className="flex items-center gap-2 rounded-full bg-teal-600 px-5 py-2.5 text-sm font-black text-white shadow-xl transition hover:bg-teal-500 active:scale-95"
           >
             🖨️ Print / Save PDF
           </button>
           <button
+            type="button"
             onClick={props.onClose}
             className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-black text-slate-800 shadow-xl transition hover:bg-slate-100 active:scale-95"
           >

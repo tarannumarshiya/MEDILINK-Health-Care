@@ -12,7 +12,7 @@ function getNextReminderDate(frequency: string, startDate?: string) {
   let date = new Date();
   if (startDate && startDate.trim()) {
     const parsed = new Date(startDate);
-    if (!isNaN(parsed.getTime())) {
+    if (!Number.isNaN(parsed.getTime())) {
       date = parsed;
     }
   }
@@ -191,6 +191,7 @@ router.post("/", async (req: Request, res: Response) => {
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .insert({
+        profile_id,
         patient_phone: phoneToUse,
         medicine_id: medicine_id ?? null,
         medicine_name,
@@ -200,7 +201,7 @@ router.post("/", async (req: Request, res: Response) => {
         notes: notes || null,
         is_active: true,
       })
-      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
+      .select("id, profile_id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
       .single();
 
     if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
@@ -221,9 +222,6 @@ router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id || req.body.id || req.query.id;
 
     if (!id) {
-      if (!isStaff(profile?.role)) {
-        return res.status(403).json({ success: false, error: "Forbidden" });
-      }
       return res.status(400).json({ success: false, error: "Reminder ID is required" });
     }
 
@@ -290,9 +288,6 @@ router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id || req.body.id || req.query.id;
 
     if (!id) {
-      if (!isStaff(profile?.role)) {
-        return res.status(403).json({ success: false, error: "Forbidden" });
-      }
       return res.status(400).json({ success: false, error: "Reminder ID is required" });
     }
 
