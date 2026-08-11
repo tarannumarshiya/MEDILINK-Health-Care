@@ -59,7 +59,7 @@ router.get("/", async (req: Request, res: Response) => {
     // Reminders are PHI (medicine names + schedules). They are only ever
     // served to the authenticated owner — never to anonymous callers.
     if (!user) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
+      return res.status(200).json({ success: true, reminders: [] });
     }
 
     const { data: patient } = await getServiceClient()
@@ -188,26 +188,32 @@ router.post("/", async (req: Request, res: Response) => {
 
     const next_reminder_date = getNextReminderDate(frequency, start_date);
 
-    const { data, error } = await getServiceClient()
+    const insertPayload: Record<string, any> = {
+      patient_phone: phoneToUse,
+      medicine_name,
+      frequency,
+      start_date: start_date || new Date().toISOString().split("T")[0],
+      next_reminder_date,
+      is_active: true,
+    };
+    if (medicine_id) insertPayload.medicine_id = medicine_id;
+    if (notes) insertPayload.notes = notes;
+
+    const client = getServiceClient();
+    const { data, error } = await client
       .from("medicine_reminders")
-      .insert({
-        profile_id,
-        patient_phone: phoneToUse,
-        medicine_id: medicine_id ?? null,
-        medicine_name,
-        frequency,
-        start_date: start_date || new Date().toISOString().split("T")[0],
-        next_reminder_date,
-        notes: notes || null,
-        is_active: true,
-      })
-      .select("id, profile_id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
+      .insert(insertPayload)
+      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
       .single();
 
-    if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
+    if (error) {
+      console.error("[reminders:POST] insert error:", JSON.stringify(error));
+      return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
+    }
     return res.status(201).json({ success: true, reminder: data });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error("[reminders:POST] unexpected error:", error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 

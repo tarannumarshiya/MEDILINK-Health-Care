@@ -90,7 +90,20 @@ export function dbErrorStatus(error: any): number {
   const code = (error as any).code;
   if (typeof code === "string") {
     if (code === "PGRST116") return 404; // .single() with zero rows
-    if (["22007", "22008", "22P02", "23502", "23505", "23514", "42703", "42883"].includes(code)) {
+    if (
+      [
+        "22007",  // invalid datetime format
+        "22008",  // datetime field overflow
+        "22P02",  // invalid text representation
+        "23502",  // not null violation
+        "23503",  // foreign key violation
+        "23505",  // unique violation
+        "23514",  // check violation
+        "42703",  // undefined column
+        "42883",  // undefined function
+        "42P01",  // undefined table (schema mismatch)
+      ].includes(code)
+    ) {
       return 400;
     }
   }

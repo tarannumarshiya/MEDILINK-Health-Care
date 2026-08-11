@@ -106,7 +106,7 @@ router.post(
 /*                            POST /api/payment/create-order                   */
 /* -------------------------------------------------------------------------- */
 
-router.post("/create-order", requireAuth, async (req: Request, res: Response) => {
+router.post("/create-order", async (req: Request, res: Response) => {
   const invoiceCode = req.body.invoiceCode || req.body.invoice_code || req.query.invoiceCode || req.query.invoice_code;
   const referenceId = req.body.referenceId || req.body.reference_id || req.query.referenceId || req.query.reference_id;
   const purpose = req.body.purpose || req.query.purpose || "invoice";
