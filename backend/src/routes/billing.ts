@@ -50,7 +50,7 @@ router.post("/generate", requireAuth, requireRole(BILLING_ROLES), async (req: Re
 
     let targetPatientId = patient_id ?? null;
     if (targetPatientId) {
-      const { data: pat } = await serviceClient.from("patients").select("id").eq("id", targetPatientId).maybeSingle();
+      const { data: pat } = await getServiceClient().from("patients").select("id").eq("id", targetPatientId).maybeSingle();
       if (!pat) {
         targetPatientId = null; // Fallback to null if FK patient_id doesn't exist in patients table
       }
