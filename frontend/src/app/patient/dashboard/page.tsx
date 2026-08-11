@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 type PatientRow = { full_name: string; email: string; phone: string; age: number; patient_code: string; id: string };
-type Appointment = { id: string; appointment_code: string; department: string; preferred_date: string; preferred_time: string | null; symptoms: string | null; status: string; created_at: string; lab_required: boolean | null; prescription_text: string | null; };
+type Appointment = { id: string; appointment_code: string; department: string; preferred_date: string; preferred_time: string | null; symptoms: string | null; status: string; created_at: string; lab_required?: boolean | null; prescription_text?: string | null; };
 type PrescriptionItem = { id: string; medicine_name: string; dosage: string | null; quantity: number; instructions: string | null };
 type Prescription = { id: string; appointment_id: string | null; prescription_notes: string | null; status: string; created_at: string; doctor_id: string | null; items?: PrescriptionItem[] };
 type LabReport = { id: string; lab_test_id: string | null; result_summary: string | null; file_url: string | null; verified_by: string | null; verified_at: string | null; test_type: string | null; created_at: string };
