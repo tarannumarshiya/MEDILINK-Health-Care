@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Request } from "express";
+import ws from "ws";
 import { config } from "./config";
 
 const SUPABASE_URL = config.supabaseUrl;
@@ -19,7 +20,10 @@ if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) {
 export const serviceClient: SupabaseClient = createClient(
   SUPABASE_URL,
   SERVICE_ROLE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
+  {
+    auth: { autoRefreshToken: false, persistSession: false },
+    realtime: { transport: ws as any },
+  }
 );
 
 /**
@@ -39,8 +43,10 @@ export function createRequestClient(req: Request): SupabaseClient {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     },
     auth: { autoRefreshToken: false, persistSession: false },
+    realtime: { transport: ws as any },
   });
 }
+
 
 /* -------------------------------------------------------------------------- */
 /*  Injectable seams (used ONLY by the automated security test suite).         */

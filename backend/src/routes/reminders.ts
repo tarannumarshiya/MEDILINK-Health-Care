@@ -191,6 +191,7 @@ router.post("/", async (req: Request, res: Response) => {
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")
       .insert({
+        profile_id,
         patient_phone: phoneToUse,
         medicine_id: medicine_id ?? null,
         medicine_name,
@@ -200,7 +201,7 @@ router.post("/", async (req: Request, res: Response) => {
         notes: notes || null,
         is_active: true,
       })
-      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
+      .select("id, profile_id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
       .single();
 
     if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });

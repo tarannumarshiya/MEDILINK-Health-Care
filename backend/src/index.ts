@@ -49,7 +49,16 @@ app.use(idempotency);
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // allow Supabase storage embeds
-  contentSecurityPolicy: false,     // handled by Next.js on the frontend
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    }
+  }
 }));
 
 // ─── Compression ──────────────────────────────────────────────────────────────
