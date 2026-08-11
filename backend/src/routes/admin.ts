@@ -92,13 +92,17 @@ router.get("/doctors", async (req: Request, res: Response) => {
   res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
 
   const doctorsWithFlatten = (data ?? []).map((doc: any) => {
-    const profiles = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
-    const departments = Array.isArray(doc.departments) ? doc.departments[0] : doc.departments;
+    const rawProfile = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
+    const rawDept = Array.isArray(doc.departments) ? doc.departments[0] : doc.departments;
 
-    // Remove email from profiles object to be safe
-    if (profiles) {
-      delete profiles.email;
-    }
+    // Whitelist profile fields — never pass the raw object (may contain email)
+    const safeProfile = rawProfile
+      ? { id: rawProfile.id, full_name: rawProfile.full_name, role: rawProfile.role, is_active: rawProfile.is_active }
+      : null;
+
+    const safeDept = rawDept
+      ? { id: rawDept.id, name: rawDept.name }
+      : null;
 
     return {
       id: doc.id,
@@ -110,21 +114,14 @@ router.get("/doctors", async (req: Request, res: Response) => {
       is_available: doc.is_available,
       created_at: doc.created_at,
       /* Flattened display fields */
-      full_name: profiles?.full_name ?? null,
-      role: profiles?.role ?? null,
-      is_active: profiles?.is_active !== false,
-      department_name: departments?.name ?? null,
-      /* Preserve nested for compatibility */
-      profiles,
-      departments,
+      full_name: safeProfile?.full_name ?? null,
+      role: safeProfile?.role ?? null,
+      is_active: safeProfile?.is_active !== false,
+      department_name: safeDept?.name ?? null,
+      /* Preserve nested for compatibility (safe copies only) */
+      profiles: safeProfile,
+      departments: safeDept,
     };
-  });
-
-  // Belt-and-braces: never emit an email field at any nesting depth.
-  (doctorsWithFlatten as any[]).forEach((d: any) => {
-    delete d?.email;
-    delete d?.profiles?.email;
-    if (Array.isArray(d.profiles)) d.profiles.forEach((p: any) => delete p?.email);
   });
 
   // Filter out doctors whose profile has been deactivated

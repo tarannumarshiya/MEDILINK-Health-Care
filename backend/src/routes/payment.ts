@@ -316,7 +316,9 @@ router.post("/verify", async (req: Request, res: Response) => {
     razorpay_signature,
   } = req.body;
 
-  // ── RAZORPAY: verify HMAC signature before writing anything or checking DB ──
+  // ── Validate signature fields FIRST — before any DB lookups ──
+  // In Razorpay mode, all three signature fields are mandatory.
+  // In mock/demo mode, we still require at least invoiceCode or referenceId.
   if (config.paymentMode === "razorpay") {
     if (!config.razorpayKeySecret) {
       return void res.status(500).json({ error: "Razorpay secret not configured" });
@@ -330,6 +332,11 @@ router.post("/verify", async (req: Request, res: Response) => {
       .digest("hex");
 
     if (expected !== razorpay_signature) {
+      return void res.status(400).json({ error: "Invalid signature" });
+    }
+  } else {
+    // Mock/demo mode: if no signature fields AND no invoice/reference, return signature error
+    if (!razorpay_order_id && !razorpay_payment_id && !razorpay_signature && !invoiceCode && !referenceId) {
       return void res.status(400).json({ error: "Invalid signature" });
     }
   }

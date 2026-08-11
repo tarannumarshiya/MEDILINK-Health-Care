@@ -61,7 +61,6 @@ const p = (v: Doctor["profiles"]) => Array.isArray(v) ? v[0] : v;
 const d = (v: Doctor["departments"]) => Array.isArray(v) ? v[0] : v;
 
 export default function AdminDashboardPage() {
-  const supabase = useMemo(() => createClient(), []);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [loading, setLoading]     = useState(true);
   const [actionId, setActionId]   = useState<string | null>(null);
@@ -102,6 +101,7 @@ export default function AdminDashboardPage() {
   }
 
   async function load(showLoader = false) {
+    const supabase = createClient();
     if (showLoader) setLoading(true);
     setMsg("");
     const [apptRes, patRes, deptRes, docRes, contactRes] = await Promise.all([

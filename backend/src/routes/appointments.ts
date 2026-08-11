@@ -488,6 +488,20 @@ router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) =>
 });
 
 /* -------------------------------------------------------------------------- */
+/*                         Method Not Allowed handlers                         */
+/* -------------------------------------------------------------------------- */
+
+router.all("/create", (req: Request, res: Response) => {
+  res.setHeader("Allow", "POST");
+  res.status(405).json({ error: "Method Not Allowed" });
+});
+
+router.all("/track", (req: Request, res: Response) => {
+  res.setHeader("Allow", "POST");
+  res.status(405).json({ error: "Method Not Allowed" });
+});
+
+/* -------------------------------------------------------------------------- */
 /*                                EXPORT ROUTER                               */
 /* -------------------------------------------------------------------------- */
 

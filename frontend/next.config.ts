@@ -5,9 +5,6 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_PAYMENTS_MODE: process.env.PAYMENTS_MODE ?? "mock",
   },
   compress: true,
-  experimental: {
-    optimizePackageImports: ["lucide-react"],
-  },
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 604800,

@@ -48,9 +48,13 @@ router.get("/", async (req: Request, res: Response) => {
 
     const authHeader = req.headers.authorization ?? "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    const authClient = resolveRequestClient(req);
-    const authRes = await authClient.auth.getUser(token || undefined);
-    const user = authRes?.data?.user;
+    let user = null;
+
+    if (token) {
+      const authClient = resolveRequestClient(req);
+      const authRes = await authClient.auth.getUser(token);
+      user = authRes?.data?.user;
+    }
 
     // Reminders are PHI (medicine names + schedules). They are only ever
     // served to the authenticated owner — never to anonymous callers.
@@ -85,7 +89,7 @@ router.get("/", async (req: Request, res: Response) => {
 
     const { data, error } = await getServiceClient()
       .from("medicine_reminders")
-      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, profile_id, created_at")
+      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
       .eq("patient_phone", effectivePhone)
       .order("next_reminder_date", { ascending: true });
 
@@ -109,9 +113,13 @@ router.post("/", async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization ?? "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    const authClient = resolveRequestClient(req);
-    const authRes = await authClient.auth.getUser(token || undefined);
-    const user = authRes?.data?.user;
+    let user = null;
+
+    if (token) {
+      const authClient = resolveRequestClient(req);
+      const authRes = await authClient.auth.getUser(token);
+      user = authRes?.data?.user;
+    }
 
     const {
       patient_phone,
@@ -191,9 +199,8 @@ router.post("/", async (req: Request, res: Response) => {
         next_reminder_date,
         notes: notes || null,
         is_active: true,
-        profile_id,
       })
-      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, profile_id, created_at")
+      .select("id, medicine_id, medicine_name, frequency, start_date, next_reminder_date, notes, is_active, created_at")
       .single();
 
     if (error) return res.status(dbErrorStatus(error)).json({ success: false, error: error.message });
@@ -222,7 +229,7 @@ router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
 
     const { data: existing } = await getServiceClient()
       .from("medicine_reminders")
-      .select("id, patient_phone, profile_id")
+      .select("id, patient_phone")
       .eq("id", id)
       .maybeSingle();
 
@@ -241,7 +248,7 @@ router.put("/:id?", requireAuth, async (req: Request, res: Response) => {
         .eq("profile_id", user.id)
         .maybeSingle();
 
-      const ownsReminder = (existing.profile_id === user.id) || (patient && existing.patient_phone === patient.phone);
+      const ownsReminder = (patient && existing.patient_phone === patient.phone);
       if (!ownsReminder) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
@@ -291,7 +298,7 @@ router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
 
     const { data: existing } = await getServiceClient()
       .from("medicine_reminders")
-      .select("id, patient_phone, profile_id")
+      .select("id, patient_phone")
       .eq("id", id)
       .maybeSingle();
 
@@ -310,7 +317,7 @@ router.delete("/:id?", requireAuth, async (req: Request, res: Response) => {
         .eq("profile_id", user.id)
         .maybeSingle();
 
-      const ownsReminder = (existing.profile_id === user.id) || (patient && existing.patient_phone === patient.phone);
+      const ownsReminder = (patient && existing.patient_phone === patient.phone);
       if (!ownsReminder) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }

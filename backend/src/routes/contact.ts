@@ -3,6 +3,16 @@ import { getServiceClient, dbErrorStatus } from "../lib/supabase";
 
 const router = Router();
 
+/** Strip any HTML tags from a string to prevent XSS in API responses */
+function stripHtml(str: string): string {
+  return str.replace(/<[^>]*>/g, "").replace(/on\w+\s*=/gi, "");
+}
+
+/** Check if a string contains potentially dangerous HTML/JS patterns */
+function containsXss(str: string): boolean {
+  return /<[^>]*>/g.test(str) || /on\w+\s*=/gi.test(str) || /javascript\s*:/gi.test(str);
+}
+
 // POST /api/contact
 router.post("/", async (req: Request, res: Response) => {
   try {
@@ -34,15 +44,15 @@ router.post("/", async (req: Request, res: Response) => {
       return void res.status(400).json({ error: "Field exceeds maximum allowed length" });
     }
 
-    if (/[<>]/g.test(full_name)) {
+    if (containsXss(full_name)) {
       return void res.status(400).json({ error: "Name cannot contain HTML or script characters" });
     }
 
-    if (/[<>]/g.test(subject)) {
+    if (containsXss(subject)) {
       return void res.status(400).json({ error: "Subject cannot contain HTML or script characters" });
     }
 
-    if (message && /[<>]/g.test(message)) {
+    if (message && containsXss(message)) {
       return void res.status(400).json({ error: "Message cannot contain HTML or script characters" });
     }
 
@@ -59,11 +69,11 @@ router.post("/", async (req: Request, res: Response) => {
     const { data, error } = await getServiceClient()
       .from("contact_messages")
       .insert({
-        full_name,
+        full_name: stripHtml(full_name),
         email,
         phone: phoneValue,
-        subject,
-        message,
+        subject: stripHtml(subject),
+        message: stripHtml(message),
         status: "NEW",
       })
       .select()
@@ -72,7 +82,13 @@ router.post("/", async (req: Request, res: Response) => {
     if (error)
       return void res.status(dbErrorStatus(error)).json({ error: error.message });
 
-    res.json({ success: true, contact_message: data });
+    // Sanitize response — strip any HTML that might have been stored
+    const safeData = { ...data };
+    if (safeData.full_name) safeData.full_name = stripHtml(safeData.full_name);
+    if (safeData.subject) safeData.subject = stripHtml(safeData.subject);
+    if (safeData.message) safeData.message = stripHtml(safeData.message);
+
+    res.json({ success: true, contact_message: safeData });
   } catch {
     res.status(500).json({ error: "Server error while sending message" });
   }
