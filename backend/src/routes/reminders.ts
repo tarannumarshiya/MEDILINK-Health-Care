@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { getServiceClient, resolveRequestClient, dbErrorStatus } from "../lib/supabase";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { STAFF_ROLES } from "../lib/roles";
 import { isValidYmdDate } from "../lib/dates";
 
