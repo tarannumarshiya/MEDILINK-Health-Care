@@ -266,6 +266,15 @@ router.post("/appointments/approve", requireAuth, requireRole(APPT_MANAGE_ROLES)
       return;
     }
 
+    if (doctor_id) {
+      // Also update any associated telemedicine session
+      await serviceClient
+        .from("telemedicine_sessions")
+        .update({ doctor_id, status: "SCHEDULED" })
+        .eq("appointment_id", appointmentId)
+        .eq("status", "PENDING");
+    }
+
 
     // Audit
     await serviceClient.from("audit_logs").insert({

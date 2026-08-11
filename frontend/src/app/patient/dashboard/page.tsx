@@ -144,7 +144,7 @@ export default function PatientDashboardPage() {
       setPatient(pat); setProfileForm({ full_name: pat.full_name, phone: pat.phone, age: String(pat.age) }); setOriginalProfile({ full_name: pat.full_name, phone: pat.phone, age: String(pat.age) });
       const pid = pat.id;
       const [apptRes, labRes, invRes, claimRes, notifRes, teleRes] = await Promise.all([
-        supabase.from("appointments").select("id,appointment_code,department,preferred_date,preferred_time,symptoms,status,created_at,lab_required,prescription_text").eq("patient_id", pid).order("created_at", { ascending: false }),
+        supabase.from("appointments").select("id,appointment_code,department,preferred_date,preferred_time,symptoms,status,created_at").eq("patient_id", pid).order("created_at", { ascending: false }),
         supabase.from("lab_reports").select("id,lab_test_id,result_summary,file_url,verified_by,verified_at,test_type,created_at").eq("patient_id", pid).order("created_at", { ascending: false }),
         supabase.from("invoices").select("id,invoice_code,consultation_charge,lab_charge,medicine_charge,insurance_deduction,total,status,created_at").eq("patient_id", pid).order("created_at", { ascending: false }),
         supabase.from("insurance_claims").select("id,amount,status,decision_reason,settled_amount,created_at,policy_id").eq("patient_id", pid).order("created_at", { ascending: false }),

@@ -77,9 +77,23 @@ router.get("/queue", requireAuth,
         }
       }
 
+      // Fetch telemedicine sessions
+      const telemedicineSessions: Record<string, any> = {};
+      if (apptIds.length > 0) {
+        const { data: teleRows } = await getServiceClient()
+          .from("telemedicine_sessions")
+          .select("id,appointment_id,status,scheduled_at")
+          .in("appointment_id", apptIds);
+        
+        (teleRows ?? []).forEach((r: any) => {
+          telemedicineSessions[r.appointment_id] = r;
+        });
+      }
+
       const enriched = (appointments ?? []).map((a: any) => ({
         ...a,
         lab_reports: labReports[a.id] ?? [],
+        telemedicine_session: telemedicineSessions[a.id] ?? null,
       }));
 
       res.json({ success: true, doctor, department, appointments: enriched });

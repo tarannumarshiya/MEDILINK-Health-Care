@@ -46,6 +46,11 @@ type Appointment = {
   lab_required: boolean;
   lab_report_url: string | null;
   lab_reports: LabReport[];
+  telemedicine_session?: {
+    id: string;
+    status: string;
+    scheduled_at: string;
+  } | null;
   created_at: string;
 };
 
@@ -699,7 +704,14 @@ export default function DoctorQueuePage() {
               <div key={a.id} className="rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow)]">
                 <div className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start">
                   <div>
-                    <h3 className="text-lg font-black text-[var(--ink)]">{a.patient_name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-black text-[var(--ink)]">{a.patient_name}</h3>
+                      {a.telemedicine_session && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-200">
+                          Video Consultation
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-[var(--muted)]">{a.appointment_code} • {a.patient_phone}</p>
                   </div>
                   <StatusBadge status={a.status} />
@@ -727,6 +739,17 @@ export default function DoctorQueuePage() {
                   >
                     <FileText className="h-4 w-4" /> View Full History
                   </button>
+                  
+                  {a.telemedicine_session && (
+                    <a
+                      href="/telemedicine/dashboard"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 hover:border-blue-400 hover:bg-blue-100"
+                    >
+                      Go to Telemedicine ↗
+                    </a>
+                  )}
                 </div>
 
                 {a.status === "PENDING" && (

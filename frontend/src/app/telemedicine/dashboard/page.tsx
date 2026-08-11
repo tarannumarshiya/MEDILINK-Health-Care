@@ -602,7 +602,8 @@ export default function TelemedicineDashboardPage() {
                         {isScheduled && (() => {
                           const scheduledTime = new Date(session.scheduled_at).getTime();
                           const now = Date.now();
-                          const isTime = now >= scheduledTime && now <= scheduledTime + 60 * 60 * 1000;
+                          // Allow joining 5 minutes before scheduled time, up to 1 hour after
+                          const isTime = now >= scheduledTime - 5 * 60 * 1000 && now <= scheduledTime + 60 * 60 * 1000;
                           
                           if (!isTime) {
                             return (
