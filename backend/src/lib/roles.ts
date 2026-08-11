@@ -126,9 +126,17 @@ export const NOTIFICATION_ADMIN_ROLES = [
   ...STAFF_ROLES,
 ];
 
+// Canonicalise a role value from any source (DB profile, JWT metadata, body)
+// before comparing it against the constants above. Guards against case and
+// whitespace drift between profile values and the canonical role registry.
+export function normalizeRole(role?: string | null): string {
+  if (typeof role !== "string") return "";
+  return role.trim().toUpperCase();
+}
+
 // Helper function to check if a user role is in a allowed list
 export function hasRole(userRole: string, allowedRoles: string[]): boolean {
-  return allowedRoles.includes(userRole);
+  return allowedRoles.includes(normalizeRole(userRole));
 }
 
 // Helper function to check if user is any type of admin

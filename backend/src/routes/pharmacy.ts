@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { createRequestClient, serviceClient } from "../lib/supabase";
+import { getServiceClient, resolveRequestClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceForAppointment } from "../lib/billing";
 import { PHARMACY_ROLES } from "../lib/roles";
@@ -11,7 +11,7 @@ const router = Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/medicines", async (req: Request, res: Response) => {
-  const supabase = createRequestClient(req);
+  const supabase = resolveRequestClient(req);
 
   const { data, error } = await supabase
     .from("medicines")
@@ -47,7 +47,7 @@ router.post(
   requireAuth,
   requireRole(["ADMIN", "SUPER_ADMIN", "PHARMACIST", "PHARMACY_ADMIN"]),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
     const {
       name,
       description,
@@ -130,7 +130,7 @@ router.get(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
 
     const { data, error } = await supabase
       .from("medicines")
@@ -152,7 +152,7 @@ router.patch(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
     const { id, quantity, reorder_level, price, is_available } = req.body;
 
     if (!id) {
@@ -239,8 +239,8 @@ router.post("/orders", async (req: Request, res: Response) => {
       }
 
       // Look up the authoritative price from the medicines table
-      const { data: medicine } = await serviceClient
-        .from("medicines")
+const { data: medicine } = await getServiceClient()
+      .from("medicines")
         .select("id, price, quantity, is_available")
         .ilike("name", medicineName)
         .maybeSingle();
@@ -264,7 +264,7 @@ router.post("/orders", async (req: Request, res: Response) => {
       });
     }
 
-    const { data: order, error: orderError } = await serviceClient
+    const { data: order, error: orderError } = await getServiceClient()
       .from("pharmacy_public_orders")
       .insert({
         patient_name,
@@ -307,7 +307,7 @@ router.post("/orders/track", async (req: Request, res: Response) => {
     }
 
     const cleanSearch = rawSearch.trim();
-    let query = serviceClient
+    let query = getServiceClient()
       .from("pharmacy_public_orders")
       .select("id, status, patient_name, delivery_type, created_at")
       .order("created_at", { ascending: false });
@@ -316,8 +316,9 @@ router.post("/orders/track", async (req: Request, res: Response) => {
     if (isUuid) {
       query = query.or(`id.eq.${cleanSearch},patient_phone.eq.${cleanSearch}`);
     } else {
+      // Not a UUID: match either a non-UUID order id or the patient phone.
       const phoneDigits = cleanSearch.replace(/\D/g, "");
-      query = query.eq("patient_phone", phoneDigits);
+      query = query.or(`id.eq.${cleanSearch},patient_phone.eq.${phoneDigits}`);
     }
 
     const { data: orders, error } = await query;
@@ -344,7 +345,7 @@ router.get(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
     const { data, error } = await supabase
       .from("pharmacy_public_orders")
       .select("*")
@@ -363,7 +364,7 @@ router.patch(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
     const { id, status } = req.body;
 
     if (!id || !status) {
@@ -397,7 +398,7 @@ router.get(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
 
     const { data: prescriptions, error } = await supabase
       .from("prescriptions")
@@ -437,7 +438,7 @@ router.patch(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
     const { prescription_id } = req.body;
 
     if (!prescription_id) {
@@ -476,7 +477,7 @@ router.patch(
       let apptStatus = "PHARMACY_FULFILLED";
 
       // Check if lab is still pending
-      const { data: pendingLabs } = await serviceClient
+      const { data: pendingLabs } = await getServiceClient()
         .from("lab_tests")
         .select("id")
         .eq("appointment_id", rx.appointment_id)
@@ -490,13 +491,13 @@ router.patch(
         }
       }
 
-      await serviceClient.from("appointments").update({
+      await getServiceClient().from("appointments").update({
         status: apptStatus,
         updated_at: new Date().toISOString(),
       }).eq("id", rx.appointment_id);
 
       // Audit
-      await serviceClient.from("audit_logs").insert({
+      await getServiceClient().from("audit_logs").insert({
         action: "PHARMACY_DISPENSED",
         entity: "prescriptions",
         entity_id: prescription_id,
@@ -505,13 +506,13 @@ router.patch(
       });
 
       // Notify patient
-      const { data: appt } = await serviceClient
+      const { data: appt } = await getServiceClient()
         .from("appointments").select("patient_id").eq("id", rx.appointment_id).single();
       if (appt?.patient_id) {
-        const { data: patient } = await serviceClient
+        const { data: patient } = await getServiceClient()
           .from("patients").select("profile_id").eq("id", appt.patient_id).single();
         if (patient?.profile_id) {
-          await serviceClient.from("notifications").insert({
+          await getServiceClient().from("notifications").insert({
             user_id: patient.profile_id,
             type: "PHARMACY",
             title: "Medicines Ready",
@@ -536,7 +537,7 @@ router.get(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
 
     const { data, error } = await supabase
       .from("vendors")
@@ -556,7 +557,7 @@ router.post(
   requireAuth,
   requireRole(PHARMACY_ROLES),
   async (req: Request, res: Response) => {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
     const { name, contact, email } = req.body;
 
     if (!name) {
@@ -594,7 +595,7 @@ router.post("/questions", async (req: Request, res: Response) => {
     return;
   }
 
-  const { data, error } = await serviceClient
+  const { data, error } = await getServiceClient()
     .from("pharmacy_questions")
     .insert({ name, phone: phone ?? null, question, status: "PENDING" })
     .select()

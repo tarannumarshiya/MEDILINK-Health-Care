@@ -1,16 +1,13 @@
-import crypto from "crypto";
+import { randomInt } from "node:crypto";
 
 export function generatePatientCode(): string {
-  const num = crypto.randomInt(100000, 1000000);
-  return `PAT-${new Date().getFullYear()}-${num}`;
+  return `PAT-${new Date().getFullYear()}-${randomInt(100000, 1000000)}`;
 }
 
 export function generateAppointmentCode(): string {
-  const num = crypto.randomInt(100000, 1000000);
-  return `APT-${new Date().getFullYear()}-${num}`;
+  return `APT-${new Date().getFullYear()}-${randomInt(100000, 1000000)}`;
 }
 
 export function generateInvoiceCode(): string {
-  const num = crypto.randomInt(100000, 1000000);
-  return `INV-${new Date().getFullYear()}-${num}`;
+  return `INV-${new Date().getFullYear()}-${randomInt(100000, 1000000)}`;
 }

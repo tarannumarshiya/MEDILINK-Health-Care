@@ -1,4 +1,4 @@
-import { serviceClient } from "./supabase";
+import { getServiceClient } from "./supabase";
 import { generateInvoiceCode } from "./ids";
 
 export const LAB_CHARGE_PER_REQUEST = 200;
@@ -35,7 +35,7 @@ export async function generateInvoiceForAppointment(
   } = options;
 
   // 1. Fetch appointment details
-  const { data: appointment, error: apptError } = await serviceClient
+  const { data: appointment, error: apptError } = await getServiceClient()
     .from("appointments")
     .select("id, patient_id, patient_name, doctor_id, lab_required")
     .eq("id", appointmentId)
@@ -49,7 +49,7 @@ export async function generateInvoiceForAppointment(
   // 2. Consultation fee — ALWAYS included
   let consultationCharge = 0;
   if (includeConsultation && appointment.doctor_id) {
-    const { data: doctor } = await serviceClient
+    const { data: doctor } = await getServiceClient()
       .from("doctors")
       .select("consultation_fee")
       .eq("id", appointment.doctor_id)
@@ -62,7 +62,7 @@ export async function generateInvoiceForAppointment(
   // 3. Lab charges — ONLY if doctor requested lab tests
   let labCharge = 0;
   if (includeLab) {
-    const { data: labTests } = await serviceClient
+    const { data: labTests } = await getServiceClient()
       .from("lab_tests")
       .select("id")
       .eq("appointment_id", appointmentId);
@@ -75,14 +75,14 @@ export async function generateInvoiceForAppointment(
   // 4. Medicine charges — ONLY if doctor prescribed medicines
   let medicineCharge = 0;
   if (includeMedicine) {
-    const { data: prescriptions } = await serviceClient
+    const { data: prescriptions } = await getServiceClient()
       .from("prescriptions")
       .select("id")
       .eq("appointment_id", appointmentId);
 
     if (prescriptions && prescriptions.length > 0) {
       const prescriptionIds = prescriptions.map((p: any) => p.id);
-      const { data: items } = await serviceClient
+      const { data: items } = await getServiceClient()
         .from("prescription_items")
         .select("quantity")
         .in("prescription_id", prescriptionIds);
@@ -105,7 +105,7 @@ export async function generateInvoiceForAppointment(
   }
 
   // 5. Check if invoice already exists for this appointment
-  const { data: existingInvoice } = await serviceClient
+  const { data: existingInvoice } = await getServiceClient()
     .from("invoices")
     .select("id, invoice_code, consultation_charge, lab_charge, medicine_charge, total, status")
     .eq("appointment_id", appointmentId)
@@ -117,7 +117,7 @@ export async function generateInvoiceForAppointment(
     const newMedicineCharge = Math.max(Number(existingInvoice.medicine_charge) || 0, medicineCharge);
     const newTotal = consultationCharge + newLabCharge + newMedicineCharge;
 
-    const { data: invoice, error: invoiceError } = await serviceClient
+    const { data: invoice, error: invoiceError } = await getServiceClient()
       .from("invoices")
       .update({
         consultation_charge: consultationCharge,
@@ -137,7 +137,7 @@ export async function generateInvoiceForAppointment(
   }
 
   // 6. Generate new Invoice
-  const { data: invoice, error: invoiceError } = await serviceClient
+  const { data: invoice, error: invoiceError } = await getServiceClient()
     .from("invoices")
     .insert({
       invoice_code: generateInvoiceCode(),
@@ -160,7 +160,7 @@ export async function generateInvoiceForAppointment(
   }
 
   // 6. Update appointment status to INVOICE_GENERATED
-  await serviceClient.from("appointments").update({
+  await getServiceClient().from("appointments").update({
     status: "INVOICE_GENERATED",
     updated_at: new Date().toISOString(),
   }).eq("id", appointmentId);

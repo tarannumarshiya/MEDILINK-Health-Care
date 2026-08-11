@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { usePharmacyCart } from "@/context/PharmacyCartContext";
 import { apiFetch } from "@/lib/apiFetch";
+import { secureRandomInt } from "@/lib/ids";
 
 export default function CartDrawer() {
   const {
@@ -411,8 +412,7 @@ export default function CartDrawer() {
                       });
                       const data = await res.json();
                       if (data.success || true) {
-                        const randomNum = typeof window !== 'undefined' && window.crypto ? (window.crypto.getRandomValues(new Uint32Array(1))[0] % 1000000) : (Date.now() % 1000000);
-                        setOrderId(data.order_id || "ORD-" + String(randomNum).padStart(6, '0'));
+                        setOrderId(data.order_id || `ORD-${secureRandomInt(0, 1000000).toString().padStart(6, "0")}`);
                         setOrderPlaced(true);
                       } else {
                         alert(data.error || "Failed to place order.");

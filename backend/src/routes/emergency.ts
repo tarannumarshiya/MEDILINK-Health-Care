@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { EMERGENCY_ROLES } from "../lib/roles";
 
@@ -9,7 +9,7 @@ const EM_ROLES = EMERGENCY_ROLES;
 // GET /api/emergency/public-status  — no auth, shows bed availability for patients
 router.get("/public-status", async (_req: Request, res: Response) => {
   try {
-    const { data: beds } = await serviceClient
+    const { data: beds } = await getServiceClient()
       .from("beds")
       .select("ward, is_occupied")
       .order("ward");
@@ -54,7 +54,7 @@ router.post("/sos", async (req: Request, res: Response) => {
       }
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("emergency_sos_requests")
       .insert({
         patient_name,
@@ -87,7 +87,7 @@ router.post("/sos", async (req: Request, res: Response) => {
 // GET /api/emergency/sos-requests — admin only, see incoming SOS requests
 router.get("/sos-requests", requireAuth, requireRole(EM_ROLES), async (_req: Request, res: Response) => {
   try {
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("emergency_sos_requests")
       .select("*")
       .not("status", "eq", "RESOLVED")
@@ -117,7 +117,7 @@ router.patch("/sos-update", requireAuth, requireRole(EM_ROLES), async (req: Requ
       return;
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("emergency_sos_requests")
       .update({ status, admin_notes: admin_notes ?? null })
       .eq("id", request_id)
@@ -137,7 +137,7 @@ router.patch("/sos-update", requireAuth, requireRole(EM_ROLES), async (req: Requ
 // GET /api/emergency/cases
 router.get("/cases", requireAuth, requireRole(EM_ROLES), async (_req: Request, res: Response) => {
   try {
-    const { data: cases, error } = await serviceClient
+    const { data: cases, error } = await getServiceClient()
       .from("emergency_cases")
       .select("id,patient_name,age,gender,department,description,severity,status,bed_id,arrived_at,created_at")
       .not("status", "eq", "DISCHARGED")
@@ -148,7 +148,7 @@ router.get("/cases", requireAuth, requireRole(EM_ROLES), async (_req: Request, r
       return;
     }
 
-    const { data: beds } = await serviceClient
+    const { data: beds } = await getServiceClient()
       .from("beds")
       .select("id,ward,bed_no,is_occupied,patient_id,patient_name")
       .order("ward").order("bed_no");
@@ -168,7 +168,7 @@ router.post("/create", requireAuth, requireRole(EM_ROLES), async (req: Request, 
       return;
     }
 
-    const { data, error } = await serviceClient.from("emergency_cases").insert({
+    const { data, error } = await getServiceClient().from("emergency_cases").insert({
       patient_name,
       age: age ? Number(age) : null,
       gender: gender ?? null,
@@ -185,13 +185,13 @@ router.post("/create", requireAuth, requireRole(EM_ROLES), async (req: Request, 
 
     // If created from an SOS request, mark it as CONVERTED
     if (sos_request_id) {
-      await serviceClient
+      await getServiceClient()
         .from("emergency_sos_requests")
         .update({ status: "CONVERTED", case_id: data.id })
         .eq("id", sos_request_id);
     }
 
-    await serviceClient.from("audit_logs").insert({
+    await getServiceClient().from("audit_logs").insert({
       action: "EMERGENCY_CASE_CREATED",
       entity: "emergency_cases",
       entity_id: data.id,
@@ -215,7 +215,7 @@ router.patch("/update-status", requireAuth, requireRole(EM_ROLES), async (req: R
       return;
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("emergency_cases").update({ status }).eq("id", idToUse).select().maybeSingle();
 
     if (error) {
@@ -242,14 +242,14 @@ router.patch("/assign-bed", requireAuth, requireRole(EM_ROLES), async (req: Requ
       return;
     }
 
-    const { data: emCase } = await serviceClient.from("emergency_cases").select("patient_name").eq("id", caseIdToUse).maybeSingle();
+    const { data: emCase } = await getServiceClient().from("emergency_cases").select("patient_name").eq("id", caseIdToUse).maybeSingle();
 
-    await serviceClient.from("beds").update({
+    await getServiceClient().from("beds").update({
       is_occupied: true,
       patient_name: emCase?.patient_name ?? null,
     }).eq("id", bedIdToUse);
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("emergency_cases").update({ bed_id: bedIdToUse, status: "ADMITTED" }).eq("id", caseIdToUse).select().maybeSingle();
 
     if (error) {

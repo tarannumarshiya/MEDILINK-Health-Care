@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { createRequestClient } from "../lib/supabase";
+import { resolveRequestClient, dbErrorStatus } from "../lib/supabase";
 import { generatePatientCode } from "../lib/ids";
 
 const router = Router();
@@ -7,7 +7,7 @@ const router = Router();
 // POST /api/patients/register
 router.post("/register", async (req: Request, res: Response) => {
   try {
-    const supabase = createRequestClient(req);
+    const supabase = resolveRequestClient(req);
     const { full_name, age, phone, email, description } = req.body;
 
     if (!full_name || age === undefined || age === null || age === "" || !phone) {
@@ -20,7 +20,9 @@ router.post("/register", async (req: Request, res: Response) => {
       return;
     }
 
-    const phoneDigits = phone.replace(/\D/g, "");
+    // A numeric JSON value for phone must not crash the string pipeline below.
+    const phoneStr = String(phone).trim();
+    const phoneDigits = phoneStr.replace(/\D/g, "");
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       res.status(400).json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
       return;
@@ -48,14 +50,14 @@ router.post("/register", async (req: Request, res: Response) => {
         patient_code: generatePatientCode(),
         full_name,
         age: parsedAge,
-        phone,
+        phone: phoneStr,
         email: email ?? null,
       })
       .select()
       .single();
 
     if (error) {
-      res.status(500).json({ error: error.message });
+      res.status(dbErrorStatus(error)).json({ error: error.message });
       return;
     }
 

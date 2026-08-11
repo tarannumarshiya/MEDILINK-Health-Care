@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getServiceClient } from "../lib/supabase";
+import { getServiceClient, dbErrorStatus } from "../lib/supabase";
 import { requireAuth } from "../middleware/auth";
 import {
   generateAppointmentCode,
@@ -7,6 +7,7 @@ import {
 } from "../lib/ids";
 import { generateInvoiceForAppointment } from "../lib/billing";
 import { STAFF_ROLES } from "../lib/roles";
+import { isValidYmdDate } from "../lib/dates";
 import { sendEmail } from "../lib/email";
 import { sendWhatsAppAppointmentNotification } from "../lib/whatsapp";
 import { sendSMS } from "../lib/sms";
@@ -49,27 +50,39 @@ router.post("/create", async (req: Request, res: Response) => {
       return;
     }
 
-    const phoneDigits = phone.replace(/\D/g, "");
+    const parsedAge = Number(age);
+    if (!Number.isInteger(parsedAge) || parsedAge < 0 || parsedAge >= 150) {
+      return void res
+        .status(400)
+        .json({ error: "Age must be a valid integer between 0 and 149" });
+    }
+
+    // A JSON number must not crash the string pipeline below.
+    const phoneStr = String(phone).trim();
+    const phoneDigits = phoneStr.replace(/\D/g, "");
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       res.status(400).json({ error: "Invalid phone number format. Must be between 10 and 15 digits." });
       return;
     }
 
-    const dateObj = new Date(preferred_date);
-    if (Number.isNaN(dateObj.getTime())) {
+    const dateStr = String(preferred_date).trim();
+    if (!isValidYmdDate(dateStr)) {
       res.status(400).json({ error: "Invalid date format" });
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (dateObj < today) {
+    // Compare the calendar date (YYYY-MM-DD), not the timestamp. Interpreting
+    // the bare date through new Date() shifts it to UTC midnight, which can
+    // turn today's date into "yesterday" on servers with a negative offset.
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (dateStr < todayStr) {
       res.status(400).json({ error: "Preferred date cannot be in the past" });
       return;
     }
 
-    if (preferred_time && !/^[0-2]?[0-9]:[0-5][0-9]$/.test(preferred_time)) {
-      res.status(400).json({ error: "Invalid time format. Must be HH:MM." });
+    if (preferred_time && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(preferred_time)) {
+      res.status(400).json({ error: "Invalid time format. Must be HH:MM between 00:00 and 23:59." });
       return;
     }
 
@@ -89,7 +102,7 @@ router.post("/create", async (req: Request, res: Response) => {
     const appointmentCode = generateAppointmentCode();
 
     // Check existing patient
-    let orFilter = `phone.eq.${phone}`;
+    let orFilter = `phone.eq.${phoneStr}`;
 
     if (email) {
       orFilter += `,email.eq.${email}`;
@@ -110,15 +123,15 @@ router.post("/create", async (req: Request, res: Response) => {
           .insert({
             patient_code: generatePatientCode(),
             full_name,
-            age: Number(age),
-            phone,
+            age: parsedAge,
+            phone: phoneStr,
             email: email ?? null,
           })
           .select()
           .single();
 
       if (patientError || !createdPatient) {
-        res.status(500).json({
+        res.status(dbErrorStatus(patientError)).json({
           error: patientError?.message ?? "Unable to register patient",
         });
         return;
@@ -139,7 +152,7 @@ router.post("/create", async (req: Request, res: Response) => {
           appointment_code: appointmentCode,
           patient_id: patient.id,
           patient_name: full_name,
-          patient_phone: phone,
+          patient_phone: phoneStr,
           patient_email: email ?? null,
           department,
           department_id,
@@ -152,7 +165,7 @@ router.post("/create", async (req: Request, res: Response) => {
         .single();
 
     if (appointmentError || !appointment) {
-      res.status(500).json({
+      res.status(dbErrorStatus(appointmentError)).json({
         error:
           appointmentError?.message ??
           "Unable to create appointment",
@@ -215,9 +228,9 @@ router.post("/create", async (req: Request, res: Response) => {
         `,
       }).catch((err) => console.error("Brevo email appointment confirm failure:", err));
     }
-    if (phone) {
+    if (phoneStr) {
       sendWhatsAppAppointmentNotification({
-        recipientPhone: phone,
+        recipientPhone: phoneStr,
         patientName: full_name,
         appointmentCode,
         date: preferred_date,
@@ -225,7 +238,7 @@ router.post("/create", async (req: Request, res: Response) => {
       }).catch((err) => console.error("WhatsApp appointment notification failure:", err));
 
       sendSMS({
-        recipientPhone: phone,
+        recipientPhone: phoneStr,
         message: `Hello ${full_name}, your Medilink appointment in ${department} is confirmed for ${preferred_date}. Code: ${appointmentCode}`,
       }).catch((err) => console.error("SMS appointment notification failure:", err));
     }
@@ -259,22 +272,19 @@ router.all("/create", (req: Request, res: Response) => {
 
 router.post("/track", async (req: Request, res: Response) => {
   try {
-    const rawVal = req.body.search || req.body.appointment_code || req.query.search || req.query.appointment_code;
-    
-    if (typeof rawVal === "string" && rawVal.trim() === "" && rawVal.length > 0) {
+    const refKeys = ["search", "appointment_code", "booking_code", "reference", "code"];
+    const bodyRef = refKeys.map((k) => req.body[k]).find((v) => v != null && v !== "");
+    const queryRef = refKeys.map((k) => req.query[k]).find((v) => v != null && v !== "");
+    const rawVal = bodyRef !== undefined ? bodyRef : queryRef;
+
+    const searchValue = String(rawVal ?? "").trim();
+    if (!searchValue) {
       res.status(400).json({
         error: "Appointment reference is required",
       });
       return;
     }
 
-    const searchValue = String(rawVal || "").trim();
-    if (!searchValue) {
-      res.status(404).json({
-        error: "No appointment found for the given reference",
-      });
-      return;
-    }
 
     // Only allow lookup by appointment_code — never by phone or email
     // which would enable enumeration of other patients' records.
@@ -287,7 +297,7 @@ router.post("/track", async (req: Request, res: Response) => {
       .maybeSingle();
 
     if (error) {
-      res.status(500).json({ error: "Unable to look up appointment" });
+      res.status(dbErrorStatus(error)).json({ error: "Unable to look up appointment" });
       return;
     }
 
@@ -485,6 +495,20 @@ router.post("/:id?/consent", requireAuth, async (req: Request, res: Response) =>
     console.error(err);
     res.status(500).json({ error: "Server error while submitting consent" });
   }
+});
+
+/* -------------------------------------------------------------------------- */
+/*                         Method Not Allowed handlers                         */
+/* -------------------------------------------------------------------------- */
+
+router.all("/create", (req: Request, res: Response) => {
+  res.setHeader("Allow", "POST");
+  res.status(405).json({ error: "Method Not Allowed" });
+});
+
+router.all("/track", (req: Request, res: Response) => {
+  res.setHeader("Allow", "POST");
+  res.status(405).json({ error: "Method Not Allowed" });
 });
 
 /* -------------------------------------------------------------------------- */

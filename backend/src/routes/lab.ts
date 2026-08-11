@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInvoiceForAppointment } from "../lib/billing";
 import { LAB_ROLES } from "../lib/roles";
@@ -12,7 +12,7 @@ const router = Router();
 // GET /api/lab/queue
 router.get("/queue", requireAuth, requireRole(LAB_ROLES), async (_req: Request, res: Response) => {
   try {
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("lab_tests")
       .select(`
         id, appointment_id, patient_id, doctor_id, test_type, status,
@@ -58,7 +58,7 @@ router.get("/queue", requireAuth, requireRole(LAB_ROLES), async (_req: Request, 
 
     let reports: any[] = [];
     if (doneIds.length > 0) {
-      const { data: rData } = await serviceClient
+      const { data: rData } = await getServiceClient()
         .from("lab_reports")
         .select("id, lab_test_id, result_summary, file_url, test_type, verified_by, verified_at, created_at")
         .in("lab_test_id", doneIds)
@@ -90,7 +90,7 @@ router.patch("/update-status", requireAuth, requireRole(LAB_ROLES), async (req: 
     const payload: Record<string, unknown> = { status };
     if (status === "COLLECTED" && sample_collected_at) payload.sample_collected_at = sample_collected_at;
 
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("lab_tests")
       .update(payload)
       .eq("id", test_id)
@@ -115,7 +115,7 @@ router.patch("/update-status", requireAuth, requireRole(LAB_ROLES), async (req: 
 
       // If Lab is completed, check if pharmacy is still pending
       if (status === "COMPLETED" || status === "VERIFIED") {
-        const { data: activePrescriptions } = await serviceClient
+        const { data: activePrescriptions } = await getServiceClient()
           .from("prescriptions")
           .select("id")
           .eq("appointment_id", data.appointment_id)
@@ -133,7 +133,7 @@ router.patch("/update-status", requireAuth, requireRole(LAB_ROLES), async (req: 
         }
       }
 
-      await serviceClient
+      await getServiceClient()
         .from("appointments")
         .update({ status: apptStatus, updated_at: new Date().toISOString() })
         .eq("id", data.appointment_id);
@@ -155,7 +155,7 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
     }
 
     // Get lab_test to know patient_id and test_type
-    const { data: labTest, error: ltErr } = await serviceClient
+    const { data: labTest, error: ltErr } = await getServiceClient()
       .from("lab_tests")
       .select("id, appointment_id, patient_id, test_type")
       .eq("id", test_id)
@@ -166,7 +166,7 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
     }
 
     // Insert lab_report
-    const { data: report, error: repErr } = await serviceClient
+    const { data: report, error: repErr } = await getServiceClient()
       .from("lab_reports")
       .insert({
         lab_test_id: test_id,
@@ -183,26 +183,26 @@ router.post("/upload-report", requireAuth, requireRole(LAB_ROLES), async (req: R
     }
 
     // Mark lab_test COMPLETED
-    await serviceClient
+    await getServiceClient()
       .from("lab_tests")
       .update({ status: "COMPLETED" })
       .eq("id", test_id);
 
     // Update appointment
     if (labTest.appointment_id) {
-      await serviceClient
+      await getServiceClient()
         .from("appointments")
         .update({ status: "LAB_COMPLETED", updated_at: new Date().toISOString() })
         .eq("id", labTest.appointment_id);
 
       // Notify patient
-      const { data: appt } = await serviceClient
+      const { data: appt } = await getServiceClient()
         .from("appointments").select("patient_id").eq("id", labTest.appointment_id).single();
       if (appt?.patient_id) {
-        const { data: patient } = await serviceClient
+        const { data: patient } = await getServiceClient()
           .from("patients").select("profile_id, full_name, email, phone").eq("id", appt.patient_id).single();
         if (patient?.profile_id) {
-          await serviceClient.from("notifications").insert({
+          await getServiceClient().from("notifications").insert({
             user_id: patient.profile_id,
             type: "LAB",
             title: "Lab Report Ready",
@@ -270,8 +270,12 @@ router.patch("/verify-report", requireAuth, requireRole(LAB_ROLES), async (req: 
       return;
     }
 
+    const { data: existing } = await getServiceClient()
+      .from("lab_reports").select("id").eq("id", report_id).maybeSingle();
+    if (!existing) return void res.status(404).json({ error: "Lab report not found" });
+
     const now = new Date().toISOString();
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("lab_reports")
       .update({ verified_by: "Lab Pathologist", verified_at: now })
       .eq("id", report_id)
@@ -285,7 +289,7 @@ router.patch("/verify-report", requireAuth, requireRole(LAB_ROLES), async (req: 
 
     // Also mark the linked lab_test as VERIFIED
     if (data?.lab_test_id) {
-      await serviceClient.from("lab_tests").update({ status: "VERIFIED" }).eq("id", data.lab_test_id);
+      await getServiceClient().from("lab_tests").update({ status: "VERIFIED" }).eq("id", data.lab_test_id);
     }
 
     res.json({ success: true, report: data });
@@ -297,7 +301,7 @@ router.patch("/verify-report", requireAuth, requireRole(LAB_ROLES), async (req: 
 // GET /api/lab/reports
 router.get("/reports", requireAuth, requireRole(LAB_ROLES), async (_req: Request, res: Response) => {
   try {
-    const { data, error } = await serviceClient
+    const { data, error } = await getServiceClient()
       .from("lab_reports")
       .select("id, lab_test_id, patient_id, result_summary, file_url, test_type, verified_by, verified_at, created_at")
       .order("created_at", { ascending: false });

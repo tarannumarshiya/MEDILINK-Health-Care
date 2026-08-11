@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { getServiceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { INSURANCE_ROLES } from "../lib/roles";
 
@@ -9,7 +9,7 @@ const INS_ROLES = INSURANCE_ROLES;
 // GET /api/insurance/claims
 router.get("/claims", requireAuth, requireRole(INS_ROLES), async (req: Request, res: Response) => {
   try {
-    const { data: claims, error } = await serviceClient
+    const { data: claims, error } = await getServiceClient()
       .from("insurance_claims")
       .select("id,patient_id,policy_id,appointment_id,amount,status,decision_reason,settled_amount,created_at")
       .order("created_at", { ascending: false });
@@ -19,7 +19,7 @@ router.get("/claims", requireAuth, requireRole(INS_ROLES), async (req: Request, 
       return;
     }
 
-    const { data: policies } = await serviceClient
+    const { data: policies } = await getServiceClient()
       .from("insurance_policies")
       .select("id,policy_no,provider,coverage_amount,valid_until,patient_id")
       .order("created_at", { ascending: false });
@@ -52,7 +52,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     if (patient_id) {
       if (!isStaff) {
         // Patient: verify this patient_id belongs to them
-        const { data: ownedPatient } = await serviceClient
+        const { data: ownedPatient } = await getServiceClient()
           .from("patients")
           .select("id")
           .eq("id", patient_id)
@@ -66,7 +66,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       targetPatientId = patient_id;
     } else {
       // Resolve from authenticated user's profile
-      const { data: ownedPatient } = await serviceClient
+      const { data: ownedPatient } = await getServiceClient()
         .from("patients")
         .select("id")
         .eq("profile_id", user.id)
@@ -85,7 +85,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const { data, error } = await serviceClient.from("insurance_claims").insert({
+    const { data, error } = await getServiceClient().from("insurance_claims").insert({
       patient_id: targetPatientId,
       policy_id: policy_id ?? null,
       appointment_id: appointment_id ?? null,
@@ -112,7 +112,11 @@ router.patch("/approve", requireAuth, requireRole(INS_ROLES), async (req: Reques
       return;
     }
 
-    const { data: claim, error } = await serviceClient
+    const { data: existing } = await getServiceClient()
+      .from("insurance_claims").select("id").eq("id", claim_id).maybeSingle();
+    if (!existing) return void res.status(404).json({ error: "Claim not found" });
+
+    const { data: claim, error } = await getServiceClient()
       .from("insurance_claims")
       .update({ status: "APPROVED", settled_amount: Number(settled_amount ?? 0), decision_reason: decision_reason ?? null })
       .eq("id", claim_id).select().single();
@@ -124,16 +128,16 @@ router.patch("/approve", requireAuth, requireRole(INS_ROLES), async (req: Reques
 
     // Update invoice insurance_deduction if linked appointment exists
     if (claim?.appointment_id) {
-      const { data: inv } = await serviceClient
+      const { data: inv } = await getServiceClient()
         .from("invoices").select("id,total,insurance_deduction").eq("appointment_id", claim.appointment_id).maybeSingle();
       if (inv) {
         const newDeduction = Number(settled_amount ?? 0);
         const newTotal = Math.max(0, (inv.total + inv.insurance_deduction) - newDeduction);
-        await serviceClient.from("invoices").update({ insurance_deduction: newDeduction, total: newTotal }).eq("id", inv.id);
+        await getServiceClient().from("invoices").update({ insurance_deduction: newDeduction, total: newTotal }).eq("id", inv.id);
       }
     }
 
-    await serviceClient.from("audit_logs").insert({
+    await getServiceClient().from("audit_logs").insert({
       action: "INSURANCE_APPROVED",
       entity: "insurance_claims",
       entity_id: claim_id,
@@ -156,7 +160,11 @@ router.patch("/reject", requireAuth, requireRole(INS_ROLES), async (req: Request
       return;
     }
 
-    const { data, error } = await serviceClient
+    const { data: existing } = await getServiceClient()
+      .from("insurance_claims").select("id").eq("id", claim_id).maybeSingle();
+    if (!existing) return void res.status(404).json({ error: "Claim not found" });
+
+    const { data, error } = await getServiceClient()
       .from("insurance_claims")
       .update({ status: "REJECTED", decision_reason: decision_reason ?? null })
       .eq("id", claim_id).select().single();
@@ -166,7 +174,7 @@ router.patch("/reject", requireAuth, requireRole(INS_ROLES), async (req: Request
       return;
     }
 
-    await serviceClient.from("audit_logs").insert({
+    await getServiceClient().from("audit_logs").insert({
       action: "INSURANCE_REJECTED",
       entity: "insurance_claims",
       entity_id: claim_id,
