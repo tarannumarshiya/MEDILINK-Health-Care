@@ -30,6 +30,7 @@ router.post("/create", async (req: Request, res: Response) => {
       preferred_date,
       preferred_time,
       symptoms,
+      is_video_consultation,
     } = req.body;
 
     if (
@@ -90,7 +91,7 @@ router.post("/create", async (req: Request, res: Response) => {
     const { data: deptRows } = await getServiceClient()
       .from("departments")
       .select("id")
-      .ilike("name", department)
+      .ilike("name", `%${department.trim()}%`)
       .limit(1);
 
     const deptRow = deptRows && deptRows.length > 0 ? deptRows[0] : null;
@@ -212,7 +213,7 @@ router.post("/create", async (req: Request, res: Response) => {
       return;
     }
 
-    if (department.toLowerCase() === "telemedicine") {
+    if (is_video_consultation || department.toLowerCase() === "telemedicine") {
       let scheduled_at = new Date().toISOString();
       if (preferred_date) {
         try {

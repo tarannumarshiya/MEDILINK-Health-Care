@@ -43,6 +43,7 @@ export default function AppointmentPage() {
     preferred_date: "", preferred_time: "", symptoms: "",
     // guest-only extras
     reason_for_visit: "", emergency_contact: "",
+    is_video_consultation: false,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -341,6 +342,29 @@ export default function AppointmentPage() {
             <p className="mt-1 text-sm font-bold text-slate-500">
               Choose your preferred department, date, and time.
             </p>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="consultation_type"
+                  checked={!form.is_video_consultation}
+                  onChange={() => setForm(f => ({ ...f, is_video_consultation: false }))}
+                  className="h-4 w-4 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="font-bold text-slate-700">In-Person Visit</span>
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="consultation_type"
+                  checked={form.is_video_consultation}
+                  onChange={() => setForm(f => ({ ...f, is_video_consultation: true }))}
+                  className="h-4 w-4 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="font-bold text-slate-700">Video Consultation</span>
+              </label>
+            </div>
 
             <div className="mt-6 grid gap-5 sm:grid-cols-2">
               <div>
