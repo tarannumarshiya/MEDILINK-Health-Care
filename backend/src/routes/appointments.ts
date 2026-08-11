@@ -87,11 +87,13 @@ router.post("/create", async (req: Request, res: Response) => {
     }
 
     // Resolve Department ID
-    const { data: deptRow } = await getServiceClient()
+    const { data: deptRows } = await getServiceClient()
       .from("departments")
       .select("id")
       .ilike("name", department)
-      .maybeSingle();
+      .limit(1);
+
+    const deptRow = deptRows && deptRows.length > 0 ? deptRows[0] : null;
 
     if (!deptRow) {
       res.status(400).json({ error: "Nonexistent department" });
@@ -273,8 +275,8 @@ router.all("/create", (req: Request, res: Response) => {
 router.post("/track", async (req: Request, res: Response) => {
   try {
     const refKeys = ["search", "appointment_code", "booking_code", "reference", "code"];
-    const bodyRef = refKeys.map((k) => req.body[k]).find((v) => v != null && v !== "");
-    const queryRef = refKeys.map((k) => req.query[k]).find((v) => v != null && v !== "");
+    const bodyRef = req.body ? refKeys.map((k) => req.body[k]).find((v) => v != null && v !== "") : undefined;
+    const queryRef = req.query ? refKeys.map((k) => req.query[k]).find((v) => v != null && v !== "") : undefined;
     const rawVal = bodyRef !== undefined ? bodyRef : queryRef;
 
     const searchValue = String(rawVal ?? "").trim();

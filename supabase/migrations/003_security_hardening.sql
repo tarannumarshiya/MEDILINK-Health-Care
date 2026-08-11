@@ -135,3 +135,48 @@ BEGIN
       EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role != 'PATIENT')
     );
 END $$;
+
+-- ============================================================================
+-- 8. PRESCRIPTIONS & PRESCRIPTION_ITEMS RLS POLICIES
+-- ============================================================================
+ALTER TABLE public.prescriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.prescription_items ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  -- Prescriptions policies
+  DROP POLICY IF EXISTS "Patients can view own prescriptions" ON public.prescriptions;
+  CREATE POLICY "Patients can view own prescriptions" ON public.prescriptions
+    FOR SELECT USING (
+      appointment_id IN (
+        SELECT id FROM public.appointments WHERE patient_id IN (
+          SELECT id FROM public.patients WHERE profile_id = auth.uid()
+        )
+      )
+    );
+
+  DROP POLICY IF EXISTS "Staff can manage all prescriptions" ON public.prescriptions;
+  CREATE POLICY "Staff can manage all prescriptions" ON public.prescriptions
+    FOR ALL USING (
+      EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role != 'PATIENT')
+    );
+
+  -- Prescription Items policies
+  DROP POLICY IF EXISTS "Patients can view own prescription items" ON public.prescription_items;
+  CREATE POLICY "Patients can view own prescription items" ON public.prescription_items
+    FOR SELECT USING (
+      prescription_id IN (
+        SELECT id FROM public.prescriptions WHERE appointment_id IN (
+          SELECT id FROM public.appointments WHERE patient_id IN (
+            SELECT id FROM public.patients WHERE profile_id = auth.uid()
+          )
+        )
+      )
+    );
+
+  DROP POLICY IF EXISTS "Staff can manage all prescription items" ON public.prescription_items;
+  CREATE POLICY "Staff can manage all prescription items" ON public.prescription_items
+    FOR ALL USING (
+      EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role != 'PATIENT')
+    );
+END $$;

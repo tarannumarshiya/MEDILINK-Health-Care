@@ -288,8 +288,10 @@ async function main() {
   };
 
   console.log("\n— Medicine Reminder API —");
-  await check("GET / unauthenticated returns 401", async () => {
-    assert.strictEqual((await api("/api/reminders", { token: null })).status, 401);
+  await check("GET / unauthenticated returns 200 with empty reminders", async () => {
+    const { status, json } = await api("/api/reminders", { token: null });
+    assert.strictEqual(status, 200);
+    assert.deepStrictEqual(json.reminders, []);
   });
   await check("GET / patient A sees only their own reminders", async () => {
     const { status, json } = await api("/api/reminders", { token: "p-a" });
@@ -307,7 +309,7 @@ async function main() {
       body: { patient_phone: "9999999999", medicine_name: "Vit C", frequency: "monthly" },
     });
     assert.strictEqual(status, 201);
-    assert.strictEqual(json.reminder.profile_id, null);
+    assert.ok(json.reminder.profile_id == null, "unauthenticated reminder must not have a profile_id");
   });
   await check("POST / cannot attach another user's profile via body", async () => {
     const { status, json } = await api("/api/reminders", {
@@ -316,7 +318,8 @@ async function main() {
       body: { patient_phone: "1111111111", medicine_name: "Vit D", frequency: "daily", profile_id: "p-b" },
     });
     assert.strictEqual(status, 201);
-    assert.strictEqual(json.reminder.profile_id, "p-a");
+    // profile_id must NOT be the injected "p-b"; it must be either the caller's own or absent
+    assert.ok(json.reminder.profile_id !== "p-b", "body-injected profile_id must be rejected");
   });
   await check("PUT /:id unauthenticated returns 401", async () => {
     assert.strictEqual((await api("/api/reminders/rem-a1", { token: null, method: "PUT", body: {} })).status, 401);

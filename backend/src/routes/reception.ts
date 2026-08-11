@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { serviceClient } from "../lib/supabase";
+import { serviceClient, getServiceClient } from "../lib/supabase";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateAppointmentCode, generatePatientCode, generateInvoiceCode } from "../lib/ids";
 import { ADMIN_ROLES } from "../lib/roles";
@@ -115,8 +115,10 @@ router.post("/check-in", requireAuth, requireRole(REC_ROLES), async (req: Reques
     // TypeScript: patient is guaranteed non-null at this point (created if not found above)
     const safePatient = patient!;
 
-    const { data: deptRow } = await serviceClient.from("departments")
-      .select("id").ilike("name", department).maybeSingle();
+    const { data: deptRows } = await getServiceClient().from("departments")
+      .select("id").ilike("name", department).limit(1);
+
+    const deptRow = deptRows && deptRows.length > 0 ? deptRows[0] : null;
 
     if (!safePatient) {
       return res.status(404).json({
